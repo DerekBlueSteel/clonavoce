@@ -22,6 +22,15 @@ COPY AVVIA_CLONA_VOCE_GUI.bat ./AVVIA_CLONA_VOCE_GUI.bat
 
 RUN mkdir -p output BIN/profiles .mplcache
 
+# Pre-scaricare il modello whisper tiny durante il build per evitare download a runtime.
+# Usa CLONAVOCE_TRANSCRIBE_MODEL=base per qualità superiore (più lento).
+ENV CLONAVOCE_TRANSCRIBE_MODEL=tiny
+RUN python -c "
+from faster_whisper import WhisperModel
+WhisperModel('tiny', compute_type='int8')
+print('Modello whisper tiny precaricato.')
+"
+
 EXPOSE 8000
 
 CMD ["uvicorn", "clona_voce_service:app", "--app-dir", "BIN", "--host", "0.0.0.0", "--port", "8000"]

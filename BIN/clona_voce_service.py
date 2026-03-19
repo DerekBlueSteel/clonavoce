@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -15,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -85,6 +86,8 @@ app = FastAPI(title="ClonaVoce Service", version="1.0.0")
 executor = ThreadPoolExecutor(max_workers=max(1, MAX_WORKERS))
 jobs: dict[str, JobState] = {}
 jobs_lock = threading.Lock()
+transcribe_lock = threading.Lock()
+_whisper_models: dict[str, Any] = {}
 
 
 def _tail_text(text: str, max_chars: int = 6000) -> str:
@@ -139,6 +142,92 @@ def _job_to_dict(state: JobState) -> dict[str, Any]:
         "stderr_tail": state.stderr_tail,
         "error": state.error,
     }
+
+
+def _prepare_uploaded_sample_for_core(source_path: Path) -> Path:
+    suffix = source_path.suffix.lower()
+    if suffix in {".wav", ".ogg"}:
+        return source_path
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Formato sample non supportato senza conversione. "
+                "Usa WAV/OGG oppure installa ffmpeg sul server."
+            ),
+        )
+
+    converted = source_path.with_suffix(".wav")
+    result = subprocess.run(
+        [
+            ffmpeg,
+            "-y",
+            "-i",
+            str(source_path),
+            "-ac",
+            "1",
+            "-ar",
+            "24000",
+            str(converted),
+        ],
+        cwd=str(BASE_DIR),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0 or (not converted.exists()):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Conversione sample fallita: {result.stderr.strip() or 'errore ffmpeg'}",
+        )
+    return converted
+
+
+def _transcribe_audio_file(audio_path: Path, language_hint: str = "") -> tuple[str, str, list[str]]:
+    errors: list[str] = []
+    language = (language_hint or "").strip() or None
+
+    # 1) Try faster-whisper (best effort).
+    try:
+        from faster_whisper import WhisperModel  # type: ignore
+
+        model_name = os.getenv("CLONAVOCE_TRANSCRIBE_MODEL", "base")
+        with transcribe_lock:
+            model = _whisper_models.get(f"fw::{model_name}")
+            if model is None:
+                model = WhisperModel(model_name, compute_type=os.getenv("CLONAVOCE_TRANSCRIBE_COMPUTE", "int8"))
+                _whisper_models[f"fw::{model_name}"] = model
+        segments, _info = model.transcribe(str(audio_path), language=language, vad_filter=True)
+        text = " ".join((seg.text or "").strip() for seg in segments).strip()
+        if text:
+            return text, f"faster-whisper:{model_name}", errors
+        errors.append("faster-whisper: testo vuoto")
+    except Exception as exc:
+        errors.append(f"faster-whisper: {exc}")
+
+    # 2) Fallback: openai-whisper package.
+    try:
+        import whisper  # type: ignore
+
+        model_name = os.getenv("CLONAVOCE_TRANSCRIBE_MODEL", "base")
+        with transcribe_lock:
+            model = _whisper_models.get(f"ow::{model_name}")
+            if model is None:
+                model = whisper.load_model(model_name)
+                _whisper_models[f"ow::{model_name}"] = model
+        result = model.transcribe(str(audio_path), language=language, fp16=False)
+        text = str((result or {}).get("text", "")).strip()
+        if text:
+            return text, f"openai-whisper:{model_name}", errors
+        errors.append("openai-whisper: testo vuoto")
+    except Exception as exc:
+        errors.append(f"openai-whisper: {exc}")
+
+    return "", "", errors
 
 
 def _run_synthesize_job(job_id: str, payload: SynthesizeRequest) -> None:
@@ -313,6 +402,54 @@ def add_sample(payload: AddSampleRequest, _: None = Depends(_auth)) -> dict[str,
         "profile": data.get("profile", payload.profile),
         "sample_count": len(data.get("samples", [])),
     }
+
+
+@app.post("/profiles/add-sample-upload")
+async def add_sample_upload(
+    profile: str = Form(...),
+    sample: UploadFile = File(...),
+    auto_transcribe: bool = Form(True),
+    language_hint: str = Form("it"),
+    _: None = Depends(_auth),
+) -> dict[str, Any]:
+    if not core:
+        raise HTTPException(status_code=503, detail="core module not available")
+
+    profile_clean = str(profile or "").strip()
+    if not profile_clean:
+        raise HTTPException(status_code=400, detail="Profilo non valido")
+
+    suffix = Path(sample.filename or "sample.wav").suffix.lower()
+    if not suffix:
+        suffix = ".wav"
+
+    with tempfile.TemporaryDirectory(prefix="clonavoce_upload_") as tmp_dir:
+        uploaded_path = Path(tmp_dir) / f"mobile_sample{suffix}"
+        content = await sample.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="File sample vuoto")
+        uploaded_path.write_bytes(content)
+
+        prepared_path = _prepare_uploaded_sample_for_core(uploaded_path)
+        args = core.argparse.Namespace(profile=profile_clean, wav=str(prepared_path))
+        code = core.command_add_sample(args)
+        if code != 0:
+            raise HTTPException(status_code=400, detail="Impossibile aggiungere campione")
+
+        data = core.load_profile(profile_clean)
+        result: dict[str, Any] = {
+            "added": True,
+            "profile": data.get("profile", profile_clean),
+            "sample_count": len(data.get("samples", [])),
+        }
+
+        if auto_transcribe:
+            text, engine, errors = _transcribe_audio_file(prepared_path, language_hint=language_hint)
+            result["transcription_text"] = text
+            result["transcription_engine"] = engine
+            result["transcription_errors"] = errors
+
+        return result
 
 
 @app.post("/synthesize")

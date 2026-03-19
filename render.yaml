@@ -13,3 +13,9 @@ services:
         value: "2"
       - key: CLONAVOCE_JOB_TTL_SECONDS
         value: "86400"
+      - key: CLONAVOCE_PROFILES_DIR
+        value: "/data/profiles"
+    disk:
+      name: clonavoce-data
+      mountPath: /data
+      sizeGB: 1

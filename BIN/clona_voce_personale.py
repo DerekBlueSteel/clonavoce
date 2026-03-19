@@ -24,7 +24,8 @@ from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent
-PROFILES_DIR = BASE_DIR / "profiles"
+_profiles_dir_env = os.environ.get("CLONAVOCE_PROFILES_DIR", "").strip()
+PROFILES_DIR = Path(_profiles_dir_env) if _profiles_dir_env else BASE_DIR / "profiles"
 OUTPUT_DIR = BASE_DIR.parent / "output"  # Cartella output a livello ClonaVoce
 XTTS_MPL_CACHE_DIR = BASE_DIR.parent / ".mplcache"
 MAX_TEXT_LENGTH = 0  # 0 = nessun limite

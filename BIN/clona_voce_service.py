@@ -187,6 +187,25 @@ def _prepare_uploaded_sample_for_core(source_path: Path) -> Path:
     return converted
 
 
+def _choose_uploaded_suffix(filename: str, content_type: str) -> str:
+    suffix = Path(filename or "").suffix.lower().strip()
+    if suffix:
+        return suffix
+
+    ctype = str(content_type or "").lower().strip()
+    if "mp4" in ctype or "m4a" in ctype:
+        return ".m4a"
+    if "ogg" in ctype:
+        return ".ogg"
+    if "webm" in ctype:
+        return ".webm"
+    if "wav" in ctype:
+        return ".wav"
+    if "mpeg" in ctype or "mp3" in ctype:
+        return ".mp3"
+    return ".wav"
+
+
 def _transcribe_audio_file(audio_path: Path, language_hint: str = "") -> tuple[str, str, list[str]]:
     errors: list[str] = []
     language = (language_hint or "").strip() or None
@@ -392,16 +411,25 @@ def add_sample(payload: AddSampleRequest, _: None = Depends(_auth)) -> dict[str,
     sample_path = Path(payload.sample_path).expanduser().resolve()
     if not sample_path.exists() or not sample_path.is_file():
         raise HTTPException(status_code=400, detail="sample_path non valido")
-    args = core.argparse.Namespace(profile=payload.profile, wav=str(sample_path))
-    code = core.command_add_sample(args)
-    if code != 0:
-        raise HTTPException(status_code=400, detail="Impossibile aggiungere campione")
-    data = core.load_profile(payload.profile)
-    return {
-        "added": True,
-        "profile": data.get("profile", payload.profile),
-        "sample_count": len(data.get("samples", [])),
-    }
+    try:
+        args = core.argparse.Namespace(profile=payload.profile, wav=str(sample_path))
+        code = core.command_add_sample(args)
+        if code != 0:
+            raise HTTPException(status_code=400, detail="Impossibile aggiungere campione")
+        data = core.load_profile(payload.profile)
+        return {
+            "added": True,
+            "profile": data.get("profile", payload.profile),
+            "sample_count": len(data.get("samples", [])),
+        }
+    except HTTPException:
+        raise
+    except (ValueError, RuntimeError, FileNotFoundError) as exc:
+        # Validation/import failures from core are client-correctable and should not be 500.
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.error(f"add_sample failed: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Errore interno durante aggiunta campione")
 
 
 @app.post("/profiles/add-sample-upload")
@@ -419,9 +447,7 @@ async def add_sample_upload(
     if not profile_clean:
         raise HTTPException(status_code=400, detail="Profilo non valido")
 
-    suffix = Path(sample.filename or "sample.wav").suffix.lower()
-    if not suffix:
-        suffix = ".wav"
+    suffix = _choose_uploaded_suffix(sample.filename or "", sample.content_type or "")
 
     with tempfile.TemporaryDirectory(prefix="clonavoce_upload_") as tmp_dir:
         uploaded_path = Path(tmp_dir) / f"mobile_sample{suffix}"
@@ -430,26 +456,42 @@ async def add_sample_upload(
             raise HTTPException(status_code=400, detail="File sample vuoto")
         uploaded_path.write_bytes(content)
 
-        prepared_path = _prepare_uploaded_sample_for_core(uploaded_path)
-        args = core.argparse.Namespace(profile=profile_clean, wav=str(prepared_path))
-        code = core.command_add_sample(args)
-        if code != 0:
-            raise HTTPException(status_code=400, detail="Impossibile aggiungere campione")
+        try:
+            prepared_path = _prepare_uploaded_sample_for_core(uploaded_path)
+            args = core.argparse.Namespace(profile=profile_clean, wav=str(prepared_path))
+            code = core.command_add_sample(args)
+            if code != 0:
+                raise HTTPException(status_code=400, detail="Impossibile aggiungere campione")
 
-        data = core.load_profile(profile_clean)
-        result: dict[str, Any] = {
-            "added": True,
-            "profile": data.get("profile", profile_clean),
-            "sample_count": len(data.get("samples", [])),
-        }
+            data = core.load_profile(profile_clean)
+            result: dict[str, Any] = {
+                "added": True,
+                "profile": data.get("profile", profile_clean),
+                "sample_count": len(data.get("samples", [])),
+            }
 
-        if auto_transcribe:
-            text, engine, errors = _transcribe_audio_file(prepared_path, language_hint=language_hint)
-            result["transcription_text"] = text
-            result["transcription_engine"] = engine
-            result["transcription_errors"] = errors
+            if auto_transcribe:
+                text, engine, errors = _transcribe_audio_file(prepared_path, language_hint=language_hint)
+                result["transcription_text"] = text
+                result["transcription_engine"] = engine
+                result["transcription_errors"] = errors
 
-        return result
+            return result
+        except HTTPException:
+            raise
+        except (ValueError, RuntimeError, FileNotFoundError) as exc:
+            # Typical input/import constraints from core should be surfaced as 400.
+            raise HTTPException(status_code=400, detail=str(exc))
+        except Exception as exc:
+            logger.error(
+                "add_sample_upload failed for profile=%s filename=%s content_type=%s: %s",
+                profile_clean,
+                sample.filename,
+                sample.content_type,
+                exc,
+                exc_info=True,
+            )
+            raise HTTPException(status_code=500, detail="Errore interno durante upload sample")
 
 
 @app.post("/synthesize")

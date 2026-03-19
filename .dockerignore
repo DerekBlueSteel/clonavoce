@@ -1,0 +1,12 @@
+.venv_xtts/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.mplcache/
+output/
+sample/
+.git/
+.gitignore
+.vscode/

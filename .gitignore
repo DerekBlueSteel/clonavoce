@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+output/
+sample/
+*.wav
+*.mp3
+BIN/profiles/
+BIN/*.log
+.venv/

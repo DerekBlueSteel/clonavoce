@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: clonavoce-api
+    runtime: docker
+    rootDir: .
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: CLONAVOCE_API_KEY
+        sync: false
+      - key: CLONAVOCE_MAX_WORKERS
+        value: "2"
+      - key: CLONAVOCE_JOB_TTL_SECONDS
+        value: "86400"

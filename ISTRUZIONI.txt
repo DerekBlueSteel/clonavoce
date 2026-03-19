@@ -1,0 +1,75 @@
+CLONAVOCE - ISTRUZIONI RAPIDE (CON ESEMPI)
+
+1) AVVIO
+- GUI: esegui `AVVIA_CLONA_VOCE_GUI.bat`
+- CLI: esegui `AVVIA_CLONA_VOCE.bat <comando>`
+
+2) CREARE UN PROFILO (CLI)
+Esempio:
+`AVVIA_CLONA_VOCE.bat init-profile --profile silvio --display-name "Silvio" --i-am-the-speaker`
+
+3) AGGIUNGERE CAMPIONI
+- Formati supportati: WAV, OGG
+- Se un file supera 30 secondi, il sistema estrae automaticamente piu segmenti casuali.
+
+Esempio:
+`AVVIA_CLONA_VOCE.bat add-sample --profile silvio --wav "C:\audio\voce_lunga.ogg"`
+
+4) SINTESI SEMPLICE
+Esempio WAV:
+`AVVIA_CLONA_VOCE.bat synthesize --profile silvio --engine xtts --language it --mood neutro --text "Ciao, questo e un test." --confirmation-token SELF-VOICE-SILVIO --out "BIN\output\test.wav"`
+
+Esempio MP3:
+`AVVIA_CLONA_VOCE.bat synthesize --profile silvio --engine xtts --language it --mood felice --text "Ciao!" --confirmation-token SELF-VOICE-SILVIO --out "BIN\output\test.mp3"`
+
+5) UMORI SUPPORTATI
+- neutro
+- felice
+- triste
+- arrabbiato
+- calmo
+- energico
+
+6) DIALOGHI MULTI-VOCE E MULTI-UMORE (NELLO STESSO TESTO)
+Usa marker inline nel testo:
+`{{voice=<profilo>;mood=<umore>;language=<lingua>}}`
+
+Esempio:
+`{{voice=silvio;mood=felice;language=it}} Ciao Luca!`
+`{{voice=luca;mood=triste;language=it}} Ciao, oggi sono giu.`
+`{{voice=silvio;mood=calmo}} Tranquillo, passa.`
+`{{default}} Torno alle impostazioni di default.`
+
+Note:
+- `voice` puo essere anche `profile` o `voce`
+- `mood` puo essere anche `umore`
+- `language` puo essere anche `lang` o `lingua`
+
+7) ESEMPIO COMPLETO DA FILE TESTO
+Salva il dialogo in `dialogo.txt` e lancia:
+`AVVIA_CLONA_VOCE.bat synthesize --profile silvio --engine xtts --language it --mood neutro --text-file "dialogo.txt" --confirmation-token SELF-VOICE-SILVIO --out "BIN\output\dialogo.wav"`
+
+8) GUI - COME USARLA
+- Seleziona profilo
+- I profili sono ordinati per nome (ignorando maiuscole/accenti)
+- Puoi cambiare il nome visualizzato con "Modifica nome"
+- Puoi eliminare un profilo con "Elimina profilo" (con conferma)
+- Scegli Motore/Lingua/Umore/Formato
+- Incolla testo (anche con marker {{...}})
+- Clicca "Genera audio"
+- Nella tab Sintesi puoi mostrare/nascondere sezioni (Impostazioni/Coda/Progresso/Note)
+	per mantenere sempre visibili campo testo e pulsanti principali su finestre piccole
+
+9) CODA GENERAZIONE (GUI)
+- "Aggiungi in coda": prepara un job senza avviarlo
+- "Avvia coda": avvia i job in coda
+- "Svuota coda": rimuove solo i job in attesa (non interrompe quelli gia in esecuzione)
+
+10) FILE GENERATI
+- Audio: `.wav` o `.mp3`
+- Metadati: file `.json` con engine, profili usati, segmenti dialogo e impostazioni.
+
+11) ERRORI COMUNI
+- "Token di conferma non valido": usa il token del profilo selezionato.
+- "Motore XTTS non disponibile": verifica ambiente `.venv_xtts` e dipendenze.
+- Qualita bassa: usa campioni puliti (5-20s), senza rumore, e preferisci WAV.

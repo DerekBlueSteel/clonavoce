@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import secrets
@@ -18,7 +19,15 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-import clona_voce_personale as core
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+try:
+    import clona_voce_personale as core
+    logger.info("clona_voce_personale imported successfully")
+except Exception as exc:
+    logger.error(f"Failed to import clona_voce_personale: {exc}", exc_info=True)
+    core = None
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BASE_DIR.parent
@@ -204,9 +213,20 @@ def _run_synthesize_job(job_id: str, payload: SynthesizeRequest) -> None:
 
 @app.on_event("startup")
 def _startup() -> None:
-    core.ensure_dirs()
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    API_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    logger.info("Starting ClonaVoce API service...")
+    try:
+        if core:
+            core.ensure_dirs()
+            logger.info("Directories ensured")
+        else:
+            logger.warning("core module not available, skipping ensure_dirs")
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        API_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Output directories ready: {API_OUTPUT_DIR}")
+        logger.info(f"API Key configured: {bool(API_KEY)}")
+        logger.info("Startup complete")
+    except Exception as exc:
+        logger.error(f"Startup failed: {exc}", exc_info=True)
 
 
 @app.get("/health")
@@ -227,12 +247,15 @@ def health_private(_: None = Depends(_auth)) -> dict[str, Any]:
 
 @app.get("/profiles")
 def list_profiles(_: None = Depends(_auth)) -> dict[str, Any]:
+    if not core:
+        raise HTTPException(status_code=503, detail="core module not available")
     _cleanup_jobs()
     items: list[dict[str, Any]] = []
     for name in core.list_profiles():
         try:
             data = core.load_profile(name)
-        except Exception:
+        except Exception as exc:
+            logger.warning(f"Failed to load profile {name}: {exc}")
             continue
         consent = data.get("consent", {}) if isinstance(data, dict) else {}
         items.append(
@@ -248,21 +271,31 @@ def list_profiles(_: None = Depends(_auth)) -> dict[str, Any]:
 
 @app.post("/profiles/init")
 def init_profile(payload: InitProfileRequest, _: None = Depends(_auth)) -> dict[str, Any]:
-    args = core.argparse.Namespace(
-        profile=payload.profile,
-        display_name=payload.display_name,
-        i_am_the_speaker=True,
-    )
-    code = core.command_init_profile(args)
-    if code != 0:
-        raise HTTPException(status_code=400, detail="Impossibile creare il profilo")
-    data = core.load_profile(payload.profile)
-    return {
-        "created": True,
-        "profile": data.get("profile", payload.profile),
-        "display_name": data.get("display_name", payload.display_name),
-        "confirmation_token": (data.get("consent", {}) or {}).get("confirmation_token"),
-    }
+    if not core:
+        raise HTTPException(status_code=503, detail="core module not available")
+    try:
+        args = core.argparse.Namespace(
+            profile=payload.profile,
+            display_name=payload.display_name,
+            i_am_the_speaker=True,
+        )
+        code = core.command_init_profile(args)
+        if code != 0:
+            logger.error(f"command_init_profile failed with code {code} for profile {payload.profile}")
+            raise HTTPException(status_code=400, detail="Impossibile creare il profilo")
+        data = core.load_profile(payload.profile)
+        logger.info(f"Profile {payload.profile} created successfully")
+        return {
+            "created": True,
+            "profile": data.get("profile", payload.profile),
+            "display_name": data.get("display_name", payload.display_name),
+            "confirmation_token": (data.get("consent", {}) or {}).get("confirmation_token"),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"init_profile failed: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Errore interno: {exc}")
 
 
 @app.post("/profiles/add-sample")

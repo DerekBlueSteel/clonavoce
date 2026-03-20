@@ -54,6 +54,11 @@ class JobState:
     created_at: float
     status: str = "queued"
     profile: str = ""
+    display_name: str = ""
+    text_preview: str = ""
+    text_full: str = ""
+    language: str = ""
+    audio_format: str = "mp3"
     output_path: str = ""
     started_at: float | None = None
     finished_at: float | None = None
@@ -83,9 +88,29 @@ class InitProfileRequest(BaseModel):
     display_name: str = Field(..., min_length=1)
 
 
+class CreateProfileRequest(BaseModel):
+    display_name: str = Field(..., min_length=1)
+
+
+class ProfileDisplayNameUpdateRequest(BaseModel):
+    display_name: str = Field(..., min_length=1)
+
+
 class AddSampleRequest(BaseModel):
     profile: str = Field(..., min_length=1)
     sample_path: str = Field(..., min_length=1)
+
+
+class ProfileDefaultsUpdateRequest(BaseModel):
+    engine: str | None = None
+    language: str | None = None
+    mood: str | None = None
+    preset: str | None = None
+    accent: str | None = None
+    speed: float | None = Field(default=None, ge=0.5, le=2.0)
+    pitch: int | None = Field(default=None, ge=-24, le=24)
+    volume: float | None = Field(default=None, ge=-24.0, le=24.0)
+    format: str | None = None
 
 
 app = FastAPI(title="ClonaVoce Service", version="1.0.0")
@@ -105,6 +130,13 @@ def _tail_text(text: str, max_chars: int = 6000) -> str:
 
 def _slug(value: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_-]+", "-", str(value or "").strip().lower()).strip("-") or "profile"
+
+
+def _preview_text(text: str, max_chars: int = 96) -> str:
+    normalized = re.sub(r"\s+", " ", str(text or "").strip())
+    if len(normalized) <= max_chars:
+        return normalized
+    return normalized[: max_chars - 1].rstrip() + "…"
 
 
 def _cleanup_jobs() -> None:
@@ -138,6 +170,11 @@ def _job_to_dict(state: JobState) -> dict[str, Any]:
         "id": state.id,
         "status": state.status,
         "profile": state.profile,
+        "display_name": state.display_name,
+        "text_preview": state.text_preview,
+        "text_full": state.text_full,
+        "language": state.language,
+        "format": state.audio_format,
         "created_at": state.created_at,
         "started_at": state.started_at,
         "finished_at": state.finished_at,
@@ -148,6 +185,107 @@ def _job_to_dict(state: JobState) -> dict[str, Any]:
         "stderr_tail": state.stderr_tail,
         "error": state.error,
     }
+
+
+def _profile_defaults_template() -> dict[str, Any]:
+    return {
+        "engine": "auto",
+        "language": "it",
+        "mood": "neutro",
+        "preset": "professionale",
+        "accent": "italiano_standard",
+        "speed": 1.0,
+        "pitch": 0,
+        "volume": 0.0,
+        "format": "mp3",
+    }
+
+
+def _sanitize_profile_defaults(raw: dict[str, Any] | None) -> dict[str, Any]:
+    defaults = _profile_defaults_template()
+    if not isinstance(raw, dict):
+        return defaults
+
+    engine = str(raw.get("engine") or "").strip().lower()
+    if engine in {"auto", "pyttsx3", "xtts"}:
+        defaults["engine"] = engine
+
+    language = str(raw.get("language") or "").strip().lower()
+    if language:
+        defaults["language"] = language
+
+    mood = str(raw.get("mood") or "").strip().lower()
+    if mood:
+        defaults["mood"] = mood
+
+    preset = str(raw.get("preset") or "").strip().lower()
+    if preset:
+        defaults["preset"] = preset
+
+    accent = str(raw.get("accent") or "").strip().lower()
+    if accent:
+        defaults["accent"] = accent
+
+    try:
+        speed = float(raw.get("speed"))
+        if 0.5 <= speed <= 2.0:
+            defaults["speed"] = speed
+    except Exception:
+        pass
+
+    try:
+        pitch = int(raw.get("pitch"))
+        if -24 <= pitch <= 24:
+            defaults["pitch"] = pitch
+    except Exception:
+        pass
+
+    try:
+        volume = float(raw.get("volume"))
+        if -24.0 <= volume <= 24.0:
+            defaults["volume"] = volume
+    except Exception:
+        pass
+
+    audio_format = str(raw.get("format") or "").strip().lower()
+    if audio_format in {"mp3", "wav"}:
+        defaults["format"] = audio_format
+
+    return defaults
+
+
+def _generate_profile_id(display_name: str) -> str:
+    # Keep profile IDs opaque and stable across display name changes.
+    if not core:
+        return f"p{secrets.token_hex(8)}"
+    for _ in range(64):
+        candidate = f"p{secrets.token_hex(8)}"
+        try:
+            if not core.profile_file(candidate).exists():
+                return candidate
+        except Exception:
+            continue
+    return f"p{int(time.time())}{secrets.token_hex(3)}"
+
+
+def _extract_samples_for_api(profile_data: dict[str, Any]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for item in profile_data.get("samples", []) or []:
+        if not isinstance(item, dict):
+            continue
+        filename = str(item.get("filename") or "").strip()
+        if not filename:
+            continue
+        info = item.get("info", {}) if isinstance(item.get("info"), dict) else {}
+        out.append(
+            {
+                "filename": filename,
+                "original_filename": str(item.get("original_filename") or "").strip(),
+                "added_at": str(item.get("added_at") or "").strip(),
+                "duration_seconds": float(info.get("duration_seconds") or 0.0),
+            }
+        )
+    return out
 
 
 def _validate_profile_token(profile: str, confirmation_token: str) -> None:
@@ -542,9 +680,218 @@ def list_profiles() -> dict[str, Any]:
                 "display_name": data.get("display_name", name),
                 "speaker_confirmed": bool(consent.get("speaker_confirmed")),
                 "sample_count": len(data.get("samples", [])),
+                "samples": _extract_samples_for_api(data),
+                "defaults": _sanitize_profile_defaults(data.get("defaults")),
             }
         )
     return {"profiles": items}
+
+
+@app.post("/profiles/create")
+def create_profile(payload: CreateProfileRequest) -> dict[str, Any]:
+    if not core:
+        raise HTTPException(status_code=503, detail="core module not available")
+    display_name = str(payload.display_name or "").strip()
+    if not display_name:
+        raise HTTPException(status_code=400, detail="display_name obbligatorio")
+
+    profile_id = _generate_profile_id(display_name)
+    try:
+        args = core.argparse.Namespace(
+            profile=profile_id,
+            display_name=display_name,
+            i_am_the_speaker=True,
+        )
+        code = core.command_init_profile(args)
+        if code != 0:
+            raise HTTPException(status_code=400, detail="Impossibile creare il profilo")
+        data = core.load_profile(profile_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("create_profile failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Errore interno: {exc}")
+
+    return {
+        "created": True,
+        "profile": data.get("profile", profile_id),
+        "display_name": data.get("display_name", display_name),
+        "confirmation_token": (data.get("consent", {}) or {}).get("confirmation_token"),
+    }
+
+
+@app.get("/profiles/{profile}")
+def profile_detail(profile: str) -> dict[str, Any]:
+    if not core:
+        raise HTTPException(status_code=503, detail="core module not available")
+    profile_clean = _slug(profile)
+    try:
+        data = core.load_profile(profile_clean)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Profilo non trovato")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    consent = data.get("consent", {}) if isinstance(data, dict) else {}
+    return {
+        "profile": data.get("profile", profile_clean),
+        "display_name": data.get("display_name", profile_clean),
+        "speaker_confirmed": bool(consent.get("speaker_confirmed")),
+        "sample_count": len(data.get("samples", [])),
+        "samples": _extract_samples_for_api(data),
+        "defaults": _sanitize_profile_defaults(data.get("defaults")),
+    }
+
+
+@app.post("/profiles/{profile}/defaults")
+def update_profile_defaults(profile: str, payload: ProfileDefaultsUpdateRequest) -> dict[str, Any]:
+    if not core:
+        raise HTTPException(status_code=503, detail="core module not available")
+    profile_clean = _slug(profile)
+    try:
+        data = core.load_profile(profile_clean)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Profilo non trovato")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    current = _sanitize_profile_defaults(data.get("defaults"))
+    incoming = payload.model_dump(exclude_none=True)
+    merged = _sanitize_profile_defaults({**current, **incoming})
+    data["defaults"] = merged
+    try:
+        core.save_profile(profile_clean, data)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Salvataggio default fallito: {exc}")
+
+    return {
+        "updated": True,
+        "profile": profile_clean,
+        "defaults": merged,
+    }
+
+
+@app.post("/profiles/{profile}/display-name")
+def update_profile_display_name(profile: str, payload: ProfileDisplayNameUpdateRequest) -> dict[str, Any]:
+    if not core:
+        raise HTTPException(status_code=503, detail="core module not available")
+    profile_clean = _slug(profile)
+    display_name = str(payload.display_name or "").strip()
+    if not display_name:
+        raise HTTPException(status_code=400, detail="display_name obbligatorio")
+
+    try:
+        data = core.load_profile(profile_clean)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Profilo non trovato")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    data["display_name"] = display_name
+    try:
+        core.save_profile(profile_clean, data)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Impossibile aggiornare nome profilo: {exc}")
+
+    return {
+        "updated": True,
+        "profile": profile_clean,
+        "display_name": display_name,
+    }
+
+
+@app.delete("/profiles/{profile}")
+def delete_profile(profile: str) -> dict[str, Any]:
+    if not core:
+        raise HTTPException(status_code=503, detail="core module not available")
+    profile_clean = _slug(profile)
+
+    try:
+        core.load_profile(profile_clean)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Profilo non trovato")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    profile_path = core.profile_dir(profile_clean)
+    if profile_path.exists() and profile_path.is_dir():
+        try:
+            shutil.rmtree(profile_path)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"Impossibile eliminare profilo: {exc}")
+
+    removed_job_ids: list[str] = []
+    with jobs_lock:
+        to_remove = [jid for jid, state in jobs.items() if state.profile == profile_clean]
+        for jid in to_remove:
+            state = jobs.pop(jid, None)
+            if not state:
+                continue
+            removed_job_ids.append(jid)
+            path = Path(state.output_path) if state.output_path else None
+            if path and path.exists() and path.is_file():
+                try:
+                    path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+    return {
+        "deleted": True,
+        "profile": profile_clean,
+        "jobs_deleted": len(removed_job_ids),
+    }
+
+
+@app.delete("/profiles/{profile}/samples/{sample_filename}")
+def delete_profile_sample(profile: str, sample_filename: str) -> dict[str, Any]:
+    if not core:
+        raise HTTPException(status_code=503, detail="core module not available")
+    profile_clean = _slug(profile)
+    sample_name = Path(str(sample_filename or "")).name.strip()
+    if not sample_name:
+        raise HTTPException(status_code=400, detail="Nome campione non valido")
+
+    try:
+        data_before = core.load_profile(profile_clean)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Profilo non trovato")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    samples_before = data_before.get("samples", []) if isinstance(data_before, dict) else []
+    exists = any(str(item.get("filename") or "") == sample_name for item in samples_before if isinstance(item, dict))
+    if not exists:
+        raise HTTPException(status_code=404, detail="Campione non trovato")
+
+    if not hasattr(core, "command_remove_sample"):
+        raise HTTPException(status_code=501, detail="Rimozione campioni non supportata da questo backend")
+
+    try:
+        args = core.argparse.Namespace(
+            profile=profile_clean,
+            sample=[sample_name],
+            all=False,
+            keep_files=False,
+        )
+        code = core.command_remove_sample(args)
+        if code != 0:
+            raise HTTPException(status_code=400, detail="Impossibile rimuovere campione")
+        data_after = core.load_profile(profile_clean)
+    except HTTPException:
+        raise
+    except (ValueError, RuntimeError, FileNotFoundError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.error("delete_profile_sample failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Errore interno durante eliminazione campione")
+
+    return {
+        "deleted": True,
+        "profile": profile_clean,
+        "sample": sample_name,
+        "sample_count": len(data_after.get("samples", [])),
+        "samples": _extract_samples_for_api(data_after),
+    }
 
 
 @app.post("/profiles/init")
@@ -667,11 +1014,23 @@ async def add_sample_upload(
 def synthesize(payload: SynthesizeRequest) -> dict[str, Any]:
     _cleanup_jobs()
     job_id = secrets.token_hex(12)
+    display_name = payload.profile
+    if core:
+        try:
+            data = core.load_profile(payload.profile)
+            display_name = str(data.get("display_name") or payload.profile)
+        except Exception:
+            display_name = payload.profile
     state = JobState(
         id=job_id,
         created_at=time.time(),
         status="queued",
         profile=payload.profile,
+        display_name=display_name,
+        text_preview=_preview_text(payload.text),
+        text_full=str(payload.text or "").strip(),
+        language=str(payload.language or "").strip(),
+        audio_format=str(payload.format or "mp3").strip().lower() or "mp3",
     )
     with jobs_lock:
         jobs[job_id] = state
@@ -716,3 +1075,49 @@ def list_jobs() -> dict[str, Any]:
     with jobs_lock:
         items = [_job_to_dict(state) for state in sorted(jobs.values(), key=lambda x: x.created_at, reverse=True)]
     return {"jobs": items}
+
+
+@app.delete("/jobs/{job_id}")
+def delete_job(job_id: str) -> dict[str, Any]:
+    _cleanup_jobs()
+    with jobs_lock:
+        state = jobs.pop(job_id, None)
+    if not state:
+        raise HTTPException(status_code=404, detail="Job non trovato")
+
+    deleted_file = False
+    try:
+        if state.output_path:
+            path = Path(state.output_path)
+            if path.exists() and path.is_file():
+                path.unlink(missing_ok=True)
+                deleted_file = True
+    except Exception:
+        pass
+
+    return {"deleted": True, "job_id": job_id, "output_deleted": deleted_file}
+
+
+@app.delete("/jobs")
+def delete_all_jobs() -> dict[str, Any]:
+    _cleanup_jobs()
+    with jobs_lock:
+        states = list(jobs.values())
+        jobs.clear()
+
+    deleted_files = 0
+    for state in states:
+        try:
+            if state.output_path:
+                path = Path(state.output_path)
+                if path.exists() and path.is_file():
+                    path.unlink(missing_ok=True)
+                    deleted_files += 1
+        except Exception:
+            pass
+
+    return {
+        "deleted": True,
+        "jobs_deleted": len(states),
+        "output_files_deleted": deleted_files,
+    }

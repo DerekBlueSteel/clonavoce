@@ -1,0 +1,1894 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ClonaVoce Mobile">
+    <title>ClonaVoce Mobile</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            height: 100%;
+            width: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        body {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding-top: max(0px, env(safe-area-inset-top));
+            padding-bottom: max(0px, env(safe-area-inset-bottom));
+            padding-left: max(0px, env(safe-area-inset-left));
+            padding-right: max(0px, env(safe-area-inset-right));
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 16px 8px 16px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        
+        .header h1 {
+            font-size: 22px;
+            margin-bottom: 4px;
+        }
+        
+        .header-status {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+        
+        .tabs-navigation {
+            display: flex;
+            gap: 0;
+            background: white;
+            border-bottom: 1px solid #ddd;
+            overflow-x: auto;
+            flex-shrink: 0;
+        }
+        
+        .tab-button {
+            flex: 1;
+            min-width: 80px;
+            padding: 12px 8px;
+            border: none;
+            background: white;
+            color: #666;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+        }
+        
+        .tab-button.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+        
+        .tab-button:active {
+            background: #f0f0f0;
+        }
+        
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .tab-content {
+            display: none;
+            padding: 16px;
+            animation: fadeIn 0.3s;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #333;
+        }
+        
+        input[type="text"],
+        input[type="password"],
+        textarea,
+        select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            font-family: inherit;
+            background: white;
+            color: #333;
+        }
+        
+        input[type="text"]:focus,
+        input[type="password"]:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        
+        .button-group.full {
+            grid-template-columns: 1fr;
+        }
+        
+        button {
+            padding: 12px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:active {
+            background: #5568d3;
+            transform: scale(0.98);
+        }
+        
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+        
+        .btn-secondary:active {
+            background: #d0d0d0;
+        }
+        
+        .btn-small {
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+        
+        .profile-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .profile-card-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        
+        .profile-card-subtitle {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .job-item {
+            background: white;
+            border-left: 4px solid #667eea;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .job-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .job-status.queued {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .job-status.running {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .job-status.done {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .job-status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .message-box {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 13px;
+        }
+        
+        .message-info {
+            background: #e3f2fd;
+            color: #1565c0;
+            border-left: 4px solid #1976d2;
+        }
+        
+        .message-error {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #d32f2f;
+        }
+        
+        .message-success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-left: 4px solid #388e3c;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 24px;
+            color: #666;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+        
+        .empty-state-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+        
+        .settings-group {
+            background: white;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .settings-group-title {
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            color: #667eea;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+        }
+        
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: #ddd;
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+        
+        .progress-bar-fill {
+            height: 100%;
+            background: #667eea;
+            transition: width 0.3s;
+        }
+        
+        .divider {
+            height: 1px;
+            background: #eee;
+            margin: 16px 0;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .text-muted {
+            color: #999;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ClonaVoce Mobile</h1>
+        <div class="header-status" id="statusText">Connessione non verificata</div>
+    </div>
+    
+    <div class="tabs-navigation">
+        <button class="tab-button active" data-tab="settings">⚙ Impostazioni</button>
+        <button class="tab-button" data-tab="profiles">👤 Profili</button>
+        <button class="tab-button" data-tab="synthesize">🎤 Sintesi</button>
+        <button class="tab-button" data-tab="jobs">📋 Job</button>
+    </div>
+    
+    <div class="main-content">
+        <!-- SETTINGS TAB -->
+        <div class="tab-content active" id="settings">
+            <div class="settings-group">
+                <div class="settings-group-title">Connessione API</div>
+                <div class="form-group">
+                    <label>Base URL</label>
+                    <input type="text" id="apiBaseUrl" placeholder="https://clonavoce.onrender.com" value="https://clonavoce.onrender.com">
+                </div>
+                <div class="form-group">
+                    <label>API Key</label>
+                    <input type="password" id="apiKey" placeholder="Inserisci API key">
+                </div>
+                <div class="button-group full">
+                    <button class="btn-primary" onclick="testConnection()">Test connessione</button>
+                </div>
+                <div id="settingsMessage"></div>
+            </div>
+            
+            <div class="settings-group">
+                <div class="settings-group-title">Opzioni audio</div>
+                <div class="form-group">
+                    <label>Motore</label>
+                    <select id="engine">
+                        <option value="auto">Auto</option>
+                        <option value="pyttsx3">pyttsx3</option>
+                        <option value="xtts">xtts</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Lingua</label>
+                    <select id="language">
+                        <option value="it">Italiano</option>
+                        <option value="en">Inglese</option>
+                        <option value="es">Spagnolo</option>
+                        <option value="fr">Francese</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Umore</label>
+                    <select id="mood">
+                        <option value="neutro">Neutro</option>
+                        <option value="felice">Felice</option>
+                        <option value="triste">Triste</option>
+                        <option value="arrabbiato">Arrabbiato</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Velocità</label>
+                    <input type="range" id="speed" min="0.5" max="2.0" step="0.1" value="1.0" style="width: 100%;">
+                    <div class="text-muted" id="speedValue">1.0x</div>
+                </div>
+                <div class="form-group">
+                    <label>Preset</label>
+                    <select id="preset">
+                        <option value="professionale">Professionale</option>
+                        <option value="casual">Casual</option>
+                        <option value="energico">Energico</option>
+                        <option value="calmo">Calmo</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-group-title">Debug log</div>
+                <div class="text-muted" style="margin-bottom: 8px;">Log dettagliato locale (eventi UI/API/microfono), utile per supporto.</div>
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="refreshDebugLogView()">Aggiorna log</button>
+                    <button class="btn-secondary" onclick="copyDebugLog()">Copia log</button>
+                </div>
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="saveDebugLogToFile()">Salva log .txt</button>
+                    <button class="btn-secondary" onclick="clearDebugLog()">Svuota log</button>
+                </div>
+                <div class="form-group" style="margin-top: 8px; margin-bottom: 0;">
+                    <label>Anteprima log</label>
+                    <textarea id="debugLogOutput" readonly style="min-height: 180px; font-size: 12px;" placeholder="Il log comparira qui"></textarea>
+                </div>
+            </div>
+            
+            <div class="text-center text-muted">
+                <p>ClonaVoce Mobile v1.2</p>
+                <p>App mobile ottimizzata per smartphone</p>
+            </div>
+        </div>
+        
+        <!-- PROFILES TAB -->
+        <div class="tab-content" id="profiles">
+            <div class="form-group">
+                <label>Seleziona profilo</label>
+                <select id="profileSelect" onchange="onProfileChanged()">
+                    <option value="">-- Carica profili --</option>
+                </select>
+            </div>
+            <button class="btn-primary" style="width: 100%; margin-bottom: 16px;" onclick="refreshProfiles()">Aggiorna profili</button>
+
+            <div class="settings-group">
+                <div class="settings-group-title">Profilo selezionato</div>
+                <div class="form-group">
+                    <label>Token profilo (salvato su questo dispositivo)</label>
+                    <input type="password" id="profileToken" placeholder="Incolla token profilo">
+                </div>
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="saveCurrentProfileToken()">Salva token</button>
+                    <button class="btn-secondary" onclick="renameSelectedProfile()">Rinomina</button>
+                </div>
+            </div>
+
+            <div id="profilesContainer"></div>
+
+            <div class="divider"></div>
+
+            <div class="settings-group">
+                <div class="settings-group-title">Crea nuovo profilo</div>
+                <div class="form-group">
+                    <label>ID profilo</label>
+                    <input type="text" id="newProfileId" placeholder="es. mia_voce">
+                </div>
+                <div class="form-group">
+                    <label>Nome visualizzato</label>
+                    <input type="text" id="newProfileName" placeholder="es. La mia voce">
+                </div>
+                <button class="btn-primary" style="width: 100%;" onclick="createProfile()">Crea profilo</button>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-group-title">Sample stile WhatsApp</div>
+                <button
+                    class="btn-primary"
+                    id="holdRecordBtn"
+                    style="width: 100%;"
+                    onclick="toggleRecordingButton(event)"
+                >
+                    Premi per registrare
+                </button>
+                <div class="text-muted" id="recordStatus" style="margin-top: 8px;">Premi una volta per iniziare, premi di nuovo per fermare e salvare.</div>
+
+                <div class="form-group" style="margin-top: 12px;">
+                    <label>Audio originale registrato</label>
+                    <audio id="originalPreview" controls style="width: 100%;"></audio>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="uploadRecordedSampleAndCompare()">Carica sample e confronta</button>
+                    <button class="btn-secondary" onclick="clearRecordedSample()">Annulla registrazione</button>
+                </div>
+
+                <div class="form-group" style="margin-top: 10px;">
+                    <label>Testo estratto dal sample</label>
+                    <textarea id="transcriptionOutput" readonly placeholder="La trascrizione automatica comparira qui"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Voce AI sullo stesso testo</label>
+                    <audio id="aiPreview" controls style="width: 100%;"></audio>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-group-title">Aggiungi sample audio</div>
+                <input
+                    type="file"
+                    id="sampleFilePicker"
+                    accept="audio/*,.wav,.ogg,.mp3,.m4a,.aac,.flac,.wma,.opus,.webm,.mp4,.mkv,.mov,.3gp"
+                    style="display: none;"
+                    onchange="uploadSampleFromPicker(event)"
+                >
+                <button class="btn-secondary" style="width: 100%;" onclick="triggerSamplePicker()">Seleziona e carica sample audio</button>
+                <div class="text-muted" style="margin-top: 8px;">Scegli un file audio dal dispositivo per aggiungerlo al profilo selezionato.</div>
+            </div>
+        </div>
+
+        <!-- SYNTHESIZE TAB -->
+        <div class="tab-content" id="synthesize">
+            <div class="form-group">
+                <label>Profilo</label>
+                <select id="synthProfile" onchange="syncProfileFromSynthesis()">
+                    <option value="">-- Seleziona profilo --</option>
+                </select>
+            </div>
+
+            <div class="text-muted" style="margin-bottom: 12px;">Token letto automaticamente dai token salvati nel tab Profili.</div>
+
+            <div class="form-group">
+                <label>Testo da sintetizzare</label>
+                <textarea id="textToSynthesize" placeholder="Inserisci il testo che vuoi sintetizzare..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Formato</label>
+                <select id="format">
+                    <option value="mp3" selected>MP3</option>
+                </select>
+            </div>
+
+            <div id="synthProgress" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-bar-fill" id="synthProgressBar" style="width: 0%;"></div>
+                </div>
+                <div class="text-muted" id="synthProgressText">In elaborazione...</div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="synthesizeAudio()">Genera audio</button>
+                <button class="btn-secondary" onclick="shareGeneratedAudio()">Condividi audio</button>
+            </div>
+
+            <div id="synthMessage"></div>
+        </div>
+        
+        <!-- JOBS TAB -->
+        <div class="tab-content" id="jobs">
+            <button class="btn-secondary" style="width: 100%; margin-bottom: 16px;" onclick="refreshJobs()">Aggiorna job</button>
+            
+            <div id="jobsContainer"></div>
+        </div>
+    </div>
+    
+    <script>
+        const config = {
+            baseUrl: 'https://clonavoce.onrender.com',
+            apiKey: '',
+            profileTokens: {},
+            pollInterval: 2000,
+            maxPolls: 150,
+        };
+        const capabilities = {
+            sampleUpload: null,
+            openapiChecked: false,
+        };
+
+        let currentProfiles = [];
+        let currentOriginalAudioUrl = '';
+        let currentAiAudioUrl = '';
+        let recordedBlob = null;
+        let mediaRecorder = null;
+        let mediaStream = null;
+        let mediaChunks = [];
+        let isRecordingPressed = false;
+        let recordedMimeType = 'audio/webm';
+        let lastGeneratedBlob = null;
+        let lastGeneratedJobId = '';
+        let lastGeneratedFormat = 'mp3';
+        let recordingMode = '';
+        let nativeRecordingPending = false;
+        let nativeRecordingActive = false;
+        let recordingUiState = 'idle';
+        let recordingStopNotBeforeTs = 0;
+        let pendingStopTimer = null;
+        const debugLog = [];
+        const DEBUG_LOG_LIMIT = 500;
+
+        function clearPendingStopTimer() {
+            if (pendingStopTimer) {
+                clearTimeout(pendingStopTimer);
+                pendingStopTimer = null;
+            }
+        }
+
+        function setRecordingUiState(nextState) {
+            recordingUiState = String(nextState || 'idle');
+            const btn = document.getElementById('holdRecordBtn');
+            if (!btn) {
+                return;
+            }
+            btn.disabled = recordingUiState === 'starting' || recordingUiState === 'stopping';
+            if (recordingUiState === 'starting') {
+                btn.textContent = 'Avvio registrazione...';
+                btn.style.background = '#ef6c00';
+            } else if (recordingUiState === 'recording') {
+                btn.textContent = 'Ferma e salva registrazione';
+                btn.style.background = '#c62828';
+            } else if (recordingUiState === 'stopping') {
+                btn.textContent = 'Salvataggio in corso...';
+                btn.style.background = '#6d4c41';
+            } else {
+                btn.textContent = 'Premi per registrare';
+                btn.style.background = '#667eea';
+            }
+        }
+
+        function nowIso() {
+            return new Date().toISOString();
+        }
+
+        function safeSerialize(value) {
+            try {
+                if (typeof value === 'string') {
+                    return value;
+                }
+                return JSON.stringify(value);
+            } catch (_err) {
+                return String(value);
+            }
+        }
+
+        function appendDebugLog(level, tag, message, extra = null) {
+            const row = {
+                ts: nowIso(),
+                level: String(level || 'INFO').toUpperCase(),
+                tag: String(tag || 'APP'),
+                msg: String(message || ''),
+                extra,
+            };
+            debugLog.push(row);
+            if (debugLog.length > DEBUG_LOG_LIMIT) {
+                debugLog.splice(0, debugLog.length - DEBUG_LOG_LIMIT);
+            }
+            try {
+                localStorage.setItem('clonavoceDebugLog', JSON.stringify(debugLog));
+            } catch (_err) {
+                // Ignore storage quota issues.
+            }
+        }
+
+        function formatDebugLogText() {
+            return debugLog.map(item => {
+                const extraText = item.extra == null ? '' : ` | extra=${safeSerialize(item.extra)}`;
+                return `[${item.ts}] [${item.level}] [${item.tag}] ${item.msg}${extraText}`;
+            }).join('\n');
+        }
+
+        function refreshDebugLogView() {
+            const out = document.getElementById('debugLogOutput');
+            if (!out) {
+                return;
+            }
+            out.value = formatDebugLogText();
+            out.scrollTop = out.scrollHeight;
+        }
+
+        async function copyDebugLog() {
+            const text = formatDebugLogText();
+            if (!text) {
+                showMessage('settingsMessage', 'Log vuoto', 'info');
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(text);
+                showMessage('settingsMessage', 'Log copiato negli appunti', 'success');
+            } catch (_err) {
+                showMessage('settingsMessage', 'Copia non disponibile su questo dispositivo', 'error');
+            }
+        }
+
+        async function saveDebugLogToFile() {
+            const text = formatDebugLogText();
+            if (!text) {
+                showMessage('settingsMessage', 'Log vuoto', 'info');
+                return;
+            }
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const filename = `clonavoce_debug_${Date.now()}.txt`;
+            try {
+                if (navigator.share && window.File) {
+                    const file = new File([blob], filename, { type: 'text/plain' });
+                    if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            title: 'ClonaVoce Debug Log',
+                            text: 'Log diagnostico ClonaVoce',
+                            files: [file],
+                        });
+                        showMessage('settingsMessage', 'Log condiviso/salvato', 'success');
+                        return;
+                    }
+                }
+            } catch (_err) {
+                // Fallback to download below.
+            }
+            downloadBlob(blob, filename);
+            showMessage('settingsMessage', 'Log esportato come file .txt', 'success');
+        }
+
+        function clearDebugLog() {
+            debugLog.length = 0;
+            localStorage.removeItem('clonavoceDebugLog');
+            refreshDebugLogView();
+            showMessage('settingsMessage', 'Log pulito', 'success');
+        }
+
+        function logInfo(tag, message, extra = null) {
+            appendDebugLog('INFO', tag, message, extra);
+        }
+
+        function logWarn(tag, message, extra = null) {
+            appendDebugLog('WARN', tag, message, extra);
+        }
+
+        function logError(tag, message, extra = null) {
+            appendDebugLog('ERROR', tag, message, extra);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function showMessage(containerId, text, type = 'info') {
+            appendDebugLog(type === 'error' ? 'ERROR' : (type === 'success' ? 'INFO' : 'WARN'), 'UI', `showMessage ${containerId}`, { text, type });
+            const el = document.getElementById(containerId);
+            if (!el) {
+                return;
+            }
+            el.innerHTML = `<div class="message-box message-${type}">${escapeHtml(text)}</div>`;
+            setTimeout(() => {
+                if (el.innerHTML.includes('message-box')) {
+                    el.innerHTML = '';
+                }
+            }, 7000);
+        }
+
+        function showLoading(containerId, show = true) {
+            const el = document.getElementById(containerId);
+            if (!el) {
+                return;
+            }
+            if (show) {
+                el.innerHTML = '<div class="loading"><div class="spinner"></div><p>Caricamento...</p></div>';
+            } else {
+                el.innerHTML = '';
+            }
+        }
+
+        function normalizeProfileId(value) {
+            const raw = String(value || '').trim().toLowerCase();
+            const cleaned = raw.replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+            return cleaned || 'profile';
+        }
+
+        function parseProfilesPayload(data) {
+            if (Array.isArray(data)) {
+                return data.filter(item => item && typeof item === 'object');
+            }
+            if (data && typeof data === 'object' && Array.isArray(data.profiles)) {
+                return data.profiles.filter(item => item && typeof item === 'object');
+            }
+            return [];
+        }
+
+        function getProfileToken(profile) {
+            return String((config.profileTokens || {})[profile] || '').trim();
+        }
+
+        function setProfileToken(profile, token) {
+            if (!profile) {
+                return;
+            }
+            if (!config.profileTokens || typeof config.profileTokens !== 'object') {
+                config.profileTokens = {};
+            }
+            const value = String(token || '').trim();
+            if (!value) {
+                delete config.profileTokens[profile];
+            } else {
+                config.profileTokens[profile] = value;
+            }
+            saveConfig();
+        }
+
+        function loadConfig() {
+            try {
+                const savedLog = localStorage.getItem('clonavoceDebugLog');
+                if (savedLog) {
+                    const parsedLog = JSON.parse(savedLog);
+                    if (Array.isArray(parsedLog)) {
+                        parsedLog.slice(-DEBUG_LOG_LIMIT).forEach(entry => debugLog.push(entry));
+                    }
+                }
+            } catch (_err) {
+                // Ignore malformed debug logs.
+            }
+            const saved = localStorage.getItem('clonavoceConfig');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed && typeof parsed === 'object') {
+                        Object.assign(config, parsed);
+                    }
+                } catch (_err) {
+                    // Ignore invalid local storage payload.
+                }
+            }
+            if (!config.profileTokens || typeof config.profileTokens !== 'object') {
+                config.profileTokens = {};
+            }
+            document.getElementById('apiBaseUrl').value = config.baseUrl;
+            document.getElementById('apiKey').value = config.apiKey;
+            logInfo('APP', 'Config caricata', { baseUrl: config.baseUrl, hasApiKey: Boolean(config.apiKey) });
+        }
+
+        function saveConfig() {
+            config.baseUrl = document.getElementById('apiBaseUrl').value.trim().replace(/\/$/, '');
+            config.apiKey = document.getElementById('apiKey').value.trim();
+            localStorage.setItem('clonavoceConfig', JSON.stringify({
+                baseUrl: config.baseUrl,
+                apiKey: config.apiKey,
+                profileTokens: config.profileTokens,
+            }));
+        }
+
+        async function decodeResponse(resp) {
+            const contentType = String(resp.headers.get('content-type') || '').toLowerCase();
+            if (contentType.includes('application/json')) {
+                return await resp.json();
+            }
+            const text = await resp.text();
+            try {
+                return JSON.parse(text);
+            } catch (_err) {
+                return { detail: text };
+            }
+        }
+
+        async function apiRequest(method, path, payload = null) {
+            saveConfig();
+            const startedAt = Date.now();
+            const headers = { 'Accept': 'application/json' };
+            if (config.apiKey) {
+                headers['X-API-Key'] = config.apiKey;
+            }
+            const options = {
+                method: method.toUpperCase(),
+                headers,
+            };
+            if (payload) {
+                headers['Content-Type'] = 'application/json';
+                options.body = JSON.stringify(payload);
+            }
+            const url = config.baseUrl + path;
+            logInfo('API', `${method.toUpperCase()} ${path} start`, { hasPayload: Boolean(payload) });
+            try {
+                const resp = await fetch(url, options);
+                const data = await decodeResponse(resp);
+                if (!resp.ok) {
+                    throw new Error(String(data.detail || `HTTP ${resp.status}`));
+                }
+                logInfo('API', `${method.toUpperCase()} ${path} ok`, { status: resp.status, elapsedMs: Date.now() - startedAt });
+                return data;
+            } catch (err) {
+                logError('API', `${method.toUpperCase()} ${path} fail`, { error: err.message, elapsedMs: Date.now() - startedAt });
+                throw new Error(`API ${method.toUpperCase()} ${path}: ${err.message}`);
+            }
+        }
+
+        async function apiUpload(path, formData) {
+            saveConfig();
+            const startedAt = Date.now();
+            const headers = { 'Accept': 'application/json' };
+            if (config.apiKey) {
+                headers['X-API-Key'] = config.apiKey;
+            }
+            const url = config.baseUrl + path;
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers,
+                body: formData,
+            });
+            const data = await decodeResponse(resp);
+            if (!resp.ok) {
+                logError('API', `POST ${path} upload fail`, { status: resp.status, detail: data?.detail || '', elapsedMs: Date.now() - startedAt });
+                throw new Error(String(data.detail || `HTTP ${resp.status}`));
+            }
+            logInfo('API', `POST ${path} upload ok`, { status: resp.status, elapsedMs: Date.now() - startedAt });
+            return data;
+        }
+
+        async function apiFetchBlob(path) {
+            saveConfig();
+            const startedAt = Date.now();
+            const headers = {};
+            if (config.apiKey) {
+                headers['X-API-Key'] = config.apiKey;
+            }
+            const resp = await fetch(config.baseUrl + path, { method: 'GET', headers });
+            if (!resp.ok) {
+                const body = await decodeResponse(resp);
+                logError('API', `GET ${path} blob fail`, { status: resp.status, detail: body?.detail || '', elapsedMs: Date.now() - startedAt });
+                throw new Error(String(body.detail || `HTTP ${resp.status}`));
+            }
+            logInfo('API', `GET ${path} blob ok`, { status: resp.status, elapsedMs: Date.now() - startedAt });
+            return await resp.blob();
+        }
+
+        async function refreshBackendCapabilities() {
+            saveConfig();
+            const openapiUrl = config.baseUrl + '/openapi.json';
+            try {
+                const resp = await fetch(openapiUrl, { method: 'GET' });
+                if (!resp.ok) {
+                    throw new Error(`HTTP ${resp.status}`);
+                }
+                const spec = await resp.json();
+                const hasUpload = Boolean(spec && spec.paths && spec.paths['/profiles/add-sample-upload']);
+                capabilities.sampleUpload = hasUpload;
+                capabilities.openapiChecked = true;
+                logInfo('API', 'OpenAPI capabilities rilevate', {
+                    sampleUpload: hasUpload,
+                    version: spec?.info?.version || '',
+                });
+                return hasUpload;
+            } catch (err) {
+                capabilities.sampleUpload = null;
+                capabilities.openapiChecked = true;
+                logWarn('API', 'OpenAPI capabilities non disponibili', { error: err?.message || String(err) });
+                return null;
+            }
+        }
+
+        async function testConnection() {
+            document.getElementById('statusText').textContent = 'Test connessione in corso...';
+            try {
+                const pub = await apiRequest('GET', '/health');
+                try {
+                    const priv = await apiRequest('GET', '/health/private');
+                    document.getElementById('statusText').textContent = 'Online connesso';
+                    showMessage('settingsMessage', `Connessione OK. Health: ${JSON.stringify(pub)} | Privato: ${JSON.stringify(priv)}`, 'success');
+                } catch (privErr) {
+                    document.getElementById('statusText').textContent = 'Online connesso (privato KO)';
+                    showMessage('settingsMessage', `Endpoint pubblico OK. Endpoint privato KO: ${privErr.message}`, 'info');
+                }
+            } catch (err) {
+                document.getElementById('statusText').textContent = 'Connessione fallita';
+                showMessage('settingsMessage', err.message, 'error');
+            }
+        }
+
+        document.getElementById('speed').addEventListener('input', (e) => {
+            document.getElementById('speedValue').textContent = parseFloat(e.target.value).toFixed(1) + 'x';
+        });
+
+        async function refreshProfiles() {
+            showLoading('profilesContainer', true);
+            try {
+                const selected = document.getElementById('profileSelect').value.trim() || document.getElementById('synthProfile').value.trim();
+                const data = await apiRequest('GET', '/profiles');
+                currentProfiles = parseProfilesPayload(data);
+
+                const select = document.getElementById('profileSelect');
+                const synthSelect = document.getElementById('synthProfile');
+                select.innerHTML = '<option value="">-- Seleziona profilo --</option>';
+                synthSelect.innerHTML = '<option value="">-- Seleziona profilo --</option>';
+
+                currentProfiles.forEach(p => {
+                    const profile = String(p.profile || '').trim();
+                    if (!profile) {
+                        return;
+                    }
+                    const name = String(p.display_name || profile);
+                    const opt = document.createElement('option');
+                    opt.value = profile;
+                    opt.textContent = name;
+                    select.appendChild(opt);
+                    synthSelect.appendChild(opt.cloneNode(true));
+                });
+
+                const cards = currentProfiles.map(p => {
+                    const profile = String(p.profile || '');
+                    return `
+                        <div class="profile-card">
+                            <div class="profile-card-title">${escapeHtml(String(p.display_name || profile))}</div>
+                            <div class="profile-card-subtitle">ID: ${escapeHtml(profile)}</div>
+                            <div class="profile-card-subtitle">Campioni: ${Number(p.sample_count || 0)}</div>
+                            <div class="button-group" style="margin-top: 8px; margin-bottom: 0;">
+                                <button class="btn-secondary btn-small" onclick="selectProfile('${encodeURIComponent(profile)}')">Usa</button>
+                                <button class="btn-secondary btn-small" onclick="renameProfilePrompt('${encodeURIComponent(profile)}')">Rinomina</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                showLoading('profilesContainer', false);
+                document.getElementById('profilesContainer').innerHTML = cards || '<div class="empty-state"><div class="empty-state-icon">📭</div><p>Nessun profilo disponibile</p></div>';
+
+                if (selected) {
+                    select.value = selected;
+                    synthSelect.value = selected;
+                }
+                onProfileChanged();
+            } catch (err) {
+                showLoading('profilesContainer', false);
+                showMessage('profilesContainer', err.message, 'error');
+            }
+        }
+
+        function selectProfile(encodedProfile) {
+            const profile = decodeURIComponent(encodedProfile || '');
+            if (!profile) {
+                return;
+            }
+            document.getElementById('profileSelect').value = profile;
+            document.getElementById('synthProfile').value = profile;
+            onProfileChanged();
+            showMessage('profilesContainer', `Profilo selezionato: ${profile}`, 'success');
+        }
+
+        function onProfileChanged() {
+            const profile = document.getElementById('profileSelect').value.trim();
+            if (profile) {
+                document.getElementById('synthProfile').value = profile;
+            }
+            document.getElementById('profileToken').value = getProfileToken(profile);
+        }
+
+        function syncProfileFromSynthesis() {
+            const profile = document.getElementById('synthProfile').value.trim();
+            if (!profile) {
+                return;
+            }
+            document.getElementById('profileSelect').value = profile;
+            document.getElementById('profileToken').value = getProfileToken(profile);
+        }
+
+        function saveCurrentProfileToken() {
+            const profile = document.getElementById('profileSelect').value.trim();
+            if (!profile) {
+                showMessage('profilesContainer', 'Seleziona un profilo', 'error');
+                return;
+            }
+            const token = document.getElementById('profileToken').value.trim();
+            setProfileToken(profile, token);
+            showMessage('profilesContainer', token ? 'Token salvato' : 'Token rimosso', 'success');
+        }
+
+        async function createProfile() {
+            const profileInput = document.getElementById('newProfileId').value.trim();
+            const profileName = document.getElementById('newProfileName').value.trim();
+            if (!profileInput || !profileName) {
+                showMessage('profilesContainer', 'Compila ID profilo e nome', 'error');
+                return;
+            }
+            const profile = normalizeProfileId(profileInput);
+            try {
+                const result = await apiRequest('POST', '/profiles/init', { profile, display_name: profileName });
+                const token = String(result.confirmation_token || '').trim();
+                if (token) {
+                    setProfileToken(profile, token);
+                }
+                showMessage('profilesContainer', `Profilo creato: ${profile}`, 'success');
+                document.getElementById('newProfileId').value = '';
+                document.getElementById('newProfileName').value = '';
+                await refreshProfiles();
+                document.getElementById('profileSelect').value = profile;
+                document.getElementById('synthProfile').value = profile;
+                onProfileChanged();
+            } catch (err) {
+                showMessage('profilesContainer', err.message, 'error');
+            }
+        }
+
+        async function renameProfilePrompt(encodedProfile) {
+            const profile = decodeURIComponent(encodedProfile || '');
+            if (!profile) {
+                return;
+            }
+            const selected = currentProfiles.find(item => String(item.profile) === profile) || {};
+            const currentName = String(selected.display_name || profile);
+            const newName = prompt('Nuovo nome visualizzato:', currentName);
+            if (newName === null) {
+                return;
+            }
+            const clean = newName.trim();
+            if (!clean) {
+                showMessage('profilesContainer', 'Nome non valido', 'error');
+                return;
+            }
+            try {
+                const result = await apiRequest('POST', '/profiles/init', { profile, display_name: clean });
+                const token = String(result.confirmation_token || '').trim();
+                if (token) {
+                    setProfileToken(profile, token);
+                }
+                await refreshProfiles();
+                document.getElementById('profileSelect').value = profile;
+                document.getElementById('synthProfile').value = profile;
+                onProfileChanged();
+                showMessage('profilesContainer', 'Profilo rinominato', 'success');
+            } catch (err) {
+                showMessage('profilesContainer', `Rinomina non disponibile: ${err.message}`, 'error');
+            }
+        }
+
+        async function renameSelectedProfile() {
+            const profile = document.getElementById('profileSelect').value.trim();
+            if (!profile) {
+                showMessage('profilesContainer', 'Seleziona un profilo', 'error');
+                return;
+            }
+            return renameProfilePrompt(encodeURIComponent(profile));
+        }
+
+        function triggerSamplePicker() {
+            const profile = document.getElementById('profileSelect').value.trim();
+            if (!profile) {
+                showMessage('profilesContainer', 'Seleziona prima un profilo', 'error');
+                return;
+            }
+            const picker = document.getElementById('sampleFilePicker');
+            if (!picker) {
+                showMessage('profilesContainer', 'Selettore file non disponibile', 'error');
+                return;
+            }
+            picker.click();
+        }
+
+        async function uploadSampleFromPicker(event) {
+            const profile = document.getElementById('profileSelect').value.trim();
+            const file = event?.target?.files?.[0] || null;
+            if (!profile || !file) {
+                if (event?.target) {
+                    event.target.value = '';
+                }
+                return;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('profile', profile);
+                formData.append('sample', file, file.name || `sample_${Date.now()}.webm`);
+                formData.append('auto_transcribe', 'false');
+                formData.append('language_hint', document.getElementById('language').value || 'it');
+
+                const result = await apiUpload('/profiles/add-sample-upload', formData);
+                showMessage('profilesContainer', `Campione aggiunto. Totale: ${result.sample_count || '?'}`, 'success');
+                await refreshProfiles();
+                document.getElementById('profileSelect').value = profile;
+                document.getElementById('synthProfile').value = profile;
+                onProfileChanged();
+            } catch (err) {
+                showMessage('profilesContainer', err.message, 'error');
+            } finally {
+                if (event?.target) {
+                    // Reset per permettere la selezione dello stesso file consecutivamente.
+                    event.target.value = '';
+                }
+            }
+        }
+
+        async function runSynthesis(profile, text, format = 'mp3') {
+            const token = getProfileToken(profile);
+            if (!token) {
+                throw new Error('Token mancante per il profilo selezionato');
+            }
+            const payload = {
+                profile,
+                text,
+                confirmation_token: token,
+                engine: document.getElementById('engine').value,
+                language: document.getElementById('language').value,
+                mood: document.getElementById('mood').value,
+                preset: document.getElementById('preset').value,
+                accent: 'italiano_standard',
+                speed: parseFloat(document.getElementById('speed').value),
+                pitch: 0,
+                volume: 0.0,
+                format,
+            };
+
+            document.getElementById('synthProgress').style.display = 'block';
+            document.getElementById('synthProgressBar').style.width = '0%';
+
+            const accepted = await apiRequest('POST', '/synthesize', payload);
+            const jobId = String(accepted.job_id || '').trim();
+            if (!jobId) {
+                throw new Error('Risposta senza job_id');
+            }
+
+            for (let i = 0; i < config.maxPolls; i++) {
+                await sleep(config.pollInterval);
+                const progress = Math.min(95, (i / config.maxPolls) * 95);
+                document.getElementById('synthProgressBar').style.width = `${progress}%`;
+                document.getElementById('synthProgressText').textContent = `In elaborazione... (${Math.round(progress)}%)`;
+
+                const status = await apiRequest('GET', `/jobs/${encodeURIComponent(jobId)}`);
+                const state = String(status.status || '').toLowerCase();
+                if (state === 'done') {
+                    document.getElementById('synthProgressBar').style.width = '100%';
+                    document.getElementById('synthProgressText').textContent = 'Completato';
+                    const blob = await apiFetchBlob(`/jobs/${encodeURIComponent(jobId)}/download`);
+                    document.getElementById('synthProgress').style.display = 'none';
+                    return { blob, jobId };
+                }
+                if (state === 'failed') {
+                    document.getElementById('synthProgress').style.display = 'none';
+                    const errDetail = [status.error, status.stderr_tail].filter(Boolean).join(' | ');
+                    throw new Error(`Job fallito: ${errDetail || 'errore'}`);
+                }
+            }
+
+            document.getElementById('synthProgress').style.display = 'none';
+            throw new Error('Timeout sintesi');
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function chooseRecordingMimeType() {
+            // Preferenze ordinate per compatibilita Android WebView.
+            const candidates = [
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/mp4',
+                'audio/ogg;codecs=opus',
+            ];
+            if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) {
+                return '';
+            }
+            for (const mime of candidates) {
+                try {
+                    if (MediaRecorder.isTypeSupported(mime)) {
+                        logInfo('REC', 'Mime support trovato', { mime });
+                        return mime;
+                    }
+                } catch (_err) {
+                    // Ignore and try next candidate.
+                }
+            }
+            logWarn('REC', 'Nessun mime supportato esplicitamente, uso default');
+            return '';
+        }
+
+        function hasNativeAudioBridge() {
+            return Boolean(window.AndroidAudioBridge && typeof window.AndroidAudioBridge.startRecording === 'function');
+        }
+
+        function base64ToBlob(base64, mimeType) {
+            const binary = atob(String(base64 || ''));
+            const len = binary.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return new Blob([bytes], { type: mimeType || 'audio/mp4' });
+        }
+
+        function setRecordedBlobFromNative(blob, mimeType, extra = {}) {
+            recordedBlob = blob;
+            recordedMimeType = mimeType || 'audio/mp4';
+            if (currentOriginalAudioUrl) {
+                URL.revokeObjectURL(currentOriginalAudioUrl);
+            }
+            currentOriginalAudioUrl = URL.createObjectURL(recordedBlob);
+            const player = document.getElementById('originalPreview');
+            player.src = currentOriginalAudioUrl;
+            player.load();
+            document.getElementById('recordStatus').textContent = `Registrazione pronta (${Math.round(recordedBlob.size / 1024)} KB)`;
+            logInfo('REC', 'Registrazione nativa pronta', {
+                blobSize: recordedBlob.size,
+                mimeType: recordedMimeType,
+                ...extra,
+            });
+            setRecordingUiState('idle');
+        }
+
+        async function startNativeRecordingFallback(sourceError) {
+            if (!hasNativeAudioBridge()) {
+                throw sourceError || new Error('Recorder nativo Android non disponibile');
+            }
+            recordingMode = 'native';
+            nativeRecordingPending = true;
+            nativeRecordingActive = false;
+            logWarn('REC', 'Fallback a recorder nativo Android', {
+                sourceError: sourceError?.message || String(sourceError || ''),
+            });
+            document.getElementById('recordStatus').textContent = 'Registrazione nativa in avvio...';
+            window.AndroidAudioBridge.startRecording();
+        }
+
+        window.onNativeRecordingStarted = function(payload) {
+            nativeRecordingPending = false;
+            nativeRecordingActive = true;
+            recordingMode = 'native';
+            recordingStopNotBeforeTs = Date.now() + 500;
+            setRecordingUiState('recording');
+            document.getElementById('recordStatus').textContent = 'Registrazione nativa in corso. Premi di nuovo per fermare e salvare.';
+            logInfo('REC', 'Recorder nativo avviato', payload || {});
+        };
+
+        window.onNativeRecordingStopped = function(payload) {
+            clearPendingStopTimer();
+            nativeRecordingPending = false;
+            nativeRecordingActive = false;
+            recordingMode = '';
+            isRecordingPressed = false;
+            try {
+                const mimeType = String(payload?.mimeType || 'audio/mp4');
+                const blob = base64ToBlob(String(payload?.base64 || ''), mimeType);
+                setRecordedBlobFromNative(blob, mimeType, {
+                    durationMs: Number(payload?.durationMs || 0),
+                    nativeSize: Number(payload?.size || blob.size || 0),
+                });
+            } catch (err) {
+                logError('REC', 'Errore conversione registrazione nativa', { error: err?.message || String(err) });
+                document.getElementById('recordStatus').textContent = `Errore microfono: ${err.message}`;
+            }
+        };
+
+        window.onNativeRecordingError = function(payload) {
+            clearPendingStopTimer();
+            nativeRecordingPending = false;
+            nativeRecordingActive = false;
+            recordingMode = '';
+            isRecordingPressed = false;
+            setRecordingUiState('idle');
+            const message = String(payload?.message || 'Errore recorder nativo');
+            document.getElementById('recordStatus').textContent = `Errore microfono: ${message}`;
+            logError('REC', 'Recorder nativo errore', payload || { message });
+        };
+
+        async function acquireAudioStream() {
+            const constraintsList = [
+                {
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                    }
+                },
+                { audio: true },
+            ];
+            let lastError = null;
+            for (const constraints of constraintsList) {
+                try {
+                    logInfo('REC', 'getUserMedia tentativo', { constraints });
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    const tracks = stream.getAudioTracks().map(t => ({
+                        label: t.label || '',
+                        enabled: t.enabled,
+                        muted: t.muted,
+                        readyState: t.readyState,
+                    }));
+                    logInfo('REC', 'getUserMedia ok', { tracks });
+                    return stream;
+                } catch (err) {
+                    lastError = err;
+                    logWarn('REC', 'getUserMedia fail', { error: err?.message || String(err), constraints });
+                }
+            }
+            throw lastError || new Error('Impossibile aprire il microfono');
+        }
+
+        function fileExtensionFromMime(mime) {
+            const m = String(mime || '').toLowerCase();
+            if (m.includes('mp4') || m.includes('m4a')) {
+                return 'm4a';
+            }
+            if (m.includes('ogg')) {
+                return 'ogg';
+            }
+            return 'webm';
+        }
+
+        function releaseRecordingResources() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => {
+                    try {
+                        track.stop();
+                    } catch (_err) {
+                        // Ignore track stop race conditions.
+                    }
+                });
+                mediaStream = null;
+            }
+            mediaRecorder = null;
+        }
+
+        function finalizeRecordingReady(blobSize = 0, mimeType = recordedMimeType) {
+            setRecordingUiState('idle');
+            document.getElementById('recordStatus').textContent = blobSize > 0
+                ? `Registrazione pronta (${Math.round(blobSize / 1024)} KB)`
+                : 'Registrazione pronta';
+            logInfo('REC', 'Sessione registrazione finalizzata', { blobSize, mimeType });
+        }
+
+        function performStopRecording() {
+            clearPendingStopTimer();
+            setRecordingUiState('stopping');
+            document.getElementById('recordStatus').textContent = 'Salvataggio registrazione in corso...';
+            if (recordingMode === 'native') {
+                if (hasNativeAudioBridge() && (nativeRecordingActive || nativeRecordingPending)) {
+                    try {
+                        window.AndroidAudioBridge.stopRecording();
+                    } catch (err) {
+                        setRecordingUiState('idle');
+                        document.getElementById('recordStatus').textContent = `Errore microfono: ${err.message}`;
+                        logError('REC', 'Stop recorder nativo fallito', { error: err?.message || String(err) });
+                    }
+                } else {
+                    setRecordingUiState('idle');
+                }
+                return;
+            }
+            try {
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                } else {
+                    releaseRecordingResources();
+                    setRecordingUiState('idle');
+                }
+            } catch (err) {
+                releaseRecordingResources();
+                setRecordingUiState('idle');
+                document.getElementById('recordStatus').textContent = `Errore microfono: ${err.message}`;
+                logWarn('REC', 'Errore in stop recorder', { error: err?.message || String(err) });
+            }
+        }
+
+        function requestStopRecording() {
+            const waitMs = Math.max(0, recordingStopNotBeforeTs - Date.now());
+            logInfo('REC', 'Stop registrazione richiesto', { recordingMode, waitMs });
+            if (waitMs > 0) {
+                setRecordingUiState('stopping');
+                document.getElementById('recordStatus').textContent = 'Attendere un attimo, poi la registrazione verra salvata...';
+                clearPendingStopTimer();
+                pendingStopTimer = setTimeout(() => performStopRecording(), waitMs);
+                return;
+            }
+            performStopRecording();
+        }
+
+        async function synthesizeAudio() {
+            const profile = document.getElementById('synthProfile').value.trim();
+            const text = document.getElementById('textToSynthesize').value.trim();
+            const format = document.getElementById('format').value || 'mp3';
+            if (!profile || !text) {
+                showMessage('synthMessage', 'Compila profilo e testo', 'error');
+                return;
+            }
+            try {
+                const out = await runSynthesis(profile, text, format);
+                lastGeneratedBlob = out.blob;
+                lastGeneratedJobId = out.jobId;
+                lastGeneratedFormat = format;
+                downloadBlob(out.blob, `audio_${out.jobId}.${format}`);
+                showMessage('synthMessage', 'Audio generato. Puoi anche usare il pulsante Condividi audio.', 'success');
+                refreshJobs();
+            } catch (err) {
+                showMessage('synthMessage', err.message, 'error');
+            }
+        }
+
+        async function shareGeneratedAudio() {
+            if (!lastGeneratedBlob) {
+                showMessage('synthMessage', 'Genera prima un audio da condividere', 'error');
+                return;
+            }
+
+            const filename = `audio_${lastGeneratedJobId || Date.now()}.${lastGeneratedFormat || 'mp3'}`;
+            const mime = (lastGeneratedFormat || 'mp3') === 'mp3' ? 'audio/mpeg' : 'audio/wav';
+
+            try {
+                if (navigator.share && window.File) {
+                    const file = new File([lastGeneratedBlob], filename, { type: mime });
+                    if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            title: 'Audio ClonaVoce',
+                            text: 'Audio generato con ClonaVoce',
+                            files: [file],
+                        });
+                        showMessage('synthMessage', 'Condivisione completata', 'success');
+                        return;
+                    }
+                }
+
+                // Fallback: scarica il file se la condivisione file non e supportata.
+                downloadBlob(lastGeneratedBlob, filename);
+                showMessage('synthMessage', 'Condivisione file non supportata su questo dispositivo: file scaricato.', 'info');
+            } catch (err) {
+                showMessage('synthMessage', `Condivisione annullata/non riuscita: ${err.message}`, 'error');
+            }
+        }
+
+        async function uploadRecordedSampleAndCompare() {
+            const profile = document.getElementById('profileSelect').value.trim();
+            if (!profile) {
+                showMessage('profilesContainer', 'Seleziona un profilo', 'error');
+                return;
+            }
+            if (!recordedBlob) {
+                showMessage('profilesContainer', 'Registra prima un sample tenendo premuto il bottone', 'error');
+                return;
+            }
+
+            if (!capabilities.openapiChecked) {
+                await refreshBackendCapabilities();
+            }
+            if (capabilities.sampleUpload === false) {
+                // OpenAPI can be stale behind cache/CDN; do not block upload here.
+                logWarn('API', 'OpenAPI indica endpoint upload assente, ma provo comunque la richiesta reale');
+            }
+
+            const formData = new FormData();
+            formData.append('profile', profile);
+            const ext = fileExtensionFromMime(recordedMimeType);
+            formData.append('sample', recordedBlob, `sample_${Date.now()}.${ext}`);
+            formData.append('auto_transcribe', 'true');
+            formData.append('language_hint', document.getElementById('language').value || 'it');
+
+            try {
+                const result = await apiUpload('/profiles/add-sample-upload', formData);
+                await refreshProfiles();
+                document.getElementById('profileSelect').value = profile;
+                document.getElementById('synthProfile').value = profile;
+                onProfileChanged();
+
+                const transcript = String(result.transcription_text || '').trim();
+                document.getElementById('transcriptionOutput').value = transcript;
+                if (!transcript) {
+                    showMessage('profilesContainer', 'Sample caricato. Trascrizione non disponibile (installa motore whisper sul server).', 'info');
+                    return;
+                }
+
+                document.getElementById('textToSynthesize').value = transcript;
+                const ai = await runSynthesis(profile, transcript, 'mp3');
+                if (currentAiAudioUrl) {
+                    URL.revokeObjectURL(currentAiAudioUrl);
+                }
+                currentAiAudioUrl = URL.createObjectURL(ai.blob);
+                const aiPlayer = document.getElementById('aiPreview');
+                aiPlayer.src = currentAiAudioUrl;
+                aiPlayer.load();
+
+                showMessage('profilesContainer', 'Confronto pronto: ascolta Originale e Voce AI', 'success');
+                capabilities.sampleUpload = true;
+                refreshJobs();
+            } catch (err) {
+                const raw = String(err?.message || err || 'Errore upload sample');
+                if (raw.includes('404') || raw.toLowerCase() === 'not found' || raw.includes('/profiles/add-sample-upload')) {
+                    capabilities.sampleUpload = false;
+                    showMessage(
+                        'profilesContainer',
+                        'Upload sample non disponibile su questo backend remoto: endpoint /profiles/add-sample-upload assente. Va aggiornato il servizio Render.',
+                        'error'
+                    );
+                } else {
+                    showMessage('profilesContainer', raw, 'error');
+                }
+            }
+        }
+
+        async function startHoldRecording(event) {
+            if (event) {
+                event.preventDefault();
+                if (typeof event.stopPropagation === 'function') {
+                    event.stopPropagation();
+                }
+            }
+            if (isRecordingPressed) {
+                logWarn('REC', 'start ignorato: gia in registrazione');
+                return;
+            }
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                const msg = 'getUserMedia non supportato su questo WebView';
+                logError('REC', msg);
+                document.getElementById('recordStatus').textContent = `Errore microfono: ${msg}`;
+                return;
+            }
+            if (!window.MediaRecorder) {
+                const msg = 'MediaRecorder non supportato su questo dispositivo';
+                logError('REC', msg);
+                document.getElementById('recordStatus').textContent = `Errore microfono: ${msg}`;
+                return;
+            }
+            isRecordingPressed = true;
+            recordingMode = 'web';
+            clearPendingStopTimer();
+            setRecordingUiState('starting');
+            mediaChunks = [];
+            document.getElementById('recordStatus').textContent = 'Avvio registrazione in corso...';
+            logInfo('REC', 'Start hold recording', { userAgent: navigator.userAgent });
+            try {
+                releaseRecordingResources();
+                mediaStream = await acquireAudioStream();
+
+                const chosenMime = chooseRecordingMimeType();
+                try {
+                    mediaRecorder = chosenMime
+                        ? new MediaRecorder(mediaStream, { mimeType: chosenMime })
+                        : new MediaRecorder(mediaStream);
+                } catch (mrErr) {
+                    logWarn('REC', 'MediaRecorder init con mime fallita, retry default', { error: mrErr?.message || String(mrErr), chosenMime });
+                    mediaRecorder = new MediaRecorder(mediaStream);
+                }
+
+                recordedMimeType = mediaRecorder.mimeType || chosenMime || 'audio/webm';
+                logInfo('REC', 'MediaRecorder creato', { mimeType: recordedMimeType, state: mediaRecorder.state });
+                mediaRecorder.ondataavailable = (ev) => {
+                    if (ev.data && ev.data.size > 0) {
+                        mediaChunks.push(ev.data);
+                        logInfo('REC', 'Chunk acquisito', { size: ev.data.size, type: ev.data.type || recordedMimeType, chunks: mediaChunks.length });
+                    }
+                };
+                mediaRecorder.onstop = () => {
+                    logInfo('REC', 'MediaRecorder stop', { chunks: mediaChunks.length });
+                    if (!mediaChunks.length) {
+                        document.getElementById('recordStatus').textContent = 'Registrazione vuota';
+                        releaseRecordingResources();
+                        setRecordingUiState('idle');
+                        return;
+                    }
+                    recordedBlob = new Blob(mediaChunks, { type: recordedMimeType || mediaChunks[0].type || 'audio/webm' });
+                    if (currentOriginalAudioUrl) {
+                        URL.revokeObjectURL(currentOriginalAudioUrl);
+                    }
+                    currentOriginalAudioUrl = URL.createObjectURL(recordedBlob);
+                    const player = document.getElementById('originalPreview');
+                    player.src = currentOriginalAudioUrl;
+                    player.load();
+                    logInfo('REC', 'Registrazione pronta', { blobSize: recordedBlob.size, mimeType: recordedMimeType });
+                    releaseRecordingResources();
+                    finalizeRecordingReady(recordedBlob.size, recordedMimeType);
+                };
+                mediaRecorder.onerror = (ev) => {
+                    const msg = ev?.error?.message || 'Errore MediaRecorder';
+                    isRecordingPressed = false;
+                    clearPendingStopTimer();
+                    setRecordingUiState('idle');
+                    document.getElementById('recordStatus').textContent = `Errore microfono: ${msg}`;
+                    logError('REC', 'MediaRecorder onerror', { message: msg, state: mediaRecorder?.state || 'unknown' });
+                    releaseRecordingResources();
+                };
+                await sleep(50);
+                mediaRecorder.start(250);
+                recordingStopNotBeforeTs = Date.now() + 500;
+                setRecordingUiState('recording');
+                document.getElementById('recordStatus').textContent = 'Registrazione in corso. Premi di nuovo per fermare e salvare.';
+                logInfo('REC', 'MediaRecorder start eseguito', { state: mediaRecorder.state });
+            } catch (err) {
+                logError('REC', 'Start hold recording fail', {
+                    name: err?.name || 'Error',
+                    message: err?.message || String(err),
+                    stack: err?.stack || '',
+                });
+                releaseRecordingResources();
+                if (String(err?.name || '') === 'NotReadableError' || String(err?.message || '').toLowerCase().includes('audio source')) {
+                    try {
+                        await startNativeRecordingFallback(err);
+                        return;
+                    } catch (nativeErr) {
+                        logError('REC', 'Fallback recorder nativo fallito', {
+                            message: nativeErr?.message || String(nativeErr),
+                        });
+                    }
+                }
+                isRecordingPressed = false;
+                recordingMode = '';
+                clearPendingStopTimer();
+                setRecordingUiState('idle');
+                document.getElementById('recordStatus').textContent = `Errore microfono: ${err.message}`;
+            }
+        }
+
+        function stopHoldRecording(event) {
+            if (event) {
+                event.preventDefault();
+                if (typeof event.stopPropagation === 'function') {
+                    event.stopPropagation();
+                }
+            }
+            if (!isRecordingPressed) {
+                return;
+            }
+            isRecordingPressed = false;
+            requestStopRecording();
+        }
+
+        function toggleRecordingButton(event) {
+            if (event) {
+                event.preventDefault();
+                if (typeof event.stopPropagation === 'function') {
+                    event.stopPropagation();
+                }
+            }
+            if (recordingUiState === 'starting' || recordingUiState === 'stopping') {
+                logWarn('REC', 'Toggle ignorato: cambio stato gia in corso', { recordingUiState });
+                return;
+            }
+            if (recordingUiState === 'recording') {
+                stopHoldRecording(event);
+                return;
+            }
+            startHoldRecording(event);
+        }
+
+        function clearRecordedSample() {
+            clearPendingStopTimer();
+            isRecordingPressed = false;
+            recordingMode = '';
+            nativeRecordingPending = false;
+            nativeRecordingActive = false;
+            recordingStopNotBeforeTs = 0;
+            recordedBlob = null;
+            mediaChunks = [];
+            if (currentOriginalAudioUrl) {
+                URL.revokeObjectURL(currentOriginalAudioUrl);
+                currentOriginalAudioUrl = '';
+            }
+            if (currentAiAudioUrl) {
+                URL.revokeObjectURL(currentAiAudioUrl);
+                currentAiAudioUrl = '';
+            }
+            document.getElementById('originalPreview').removeAttribute('src');
+            document.getElementById('aiPreview').removeAttribute('src');
+            document.getElementById('originalPreview').load();
+            document.getElementById('aiPreview').load();
+            document.getElementById('transcriptionOutput').value = '';
+            setRecordingUiState('idle');
+            document.getElementById('recordStatus').textContent = 'Premi una volta per iniziare, premi di nuovo per fermare e salvare.';
+        }
+
+        async function refreshJobs() {
+            showLoading('jobsContainer', true);
+            try {
+                const data = await apiRequest('GET', '/jobs');
+                const jobs = Array.isArray(data.jobs) ? data.jobs.slice(0, 20) : [];
+                showLoading('jobsContainer', false);
+
+                if (!jobs.length) {
+                    document.getElementById('jobsContainer').innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p>Nessun job generato</p></div>';
+                    return;
+                }
+
+                const html = jobs.map(j => {
+                    const status = String(j.status || '').toLowerCase();
+                    const id = String(j.id || '');
+                    return `
+                        <div class="job-item">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span class="job-status ${escapeHtml(status)}">${escapeHtml(status.toUpperCase())}</span>
+                                <span class="text-muted">ID: ${escapeHtml(id.slice(0, 8))}</span>
+                            </div>
+                            <div class="text-muted">Profilo: ${escapeHtml(String(j.profile || ''))}</div>
+                            <div class="text-muted">${status === 'done' ? `<a href="#" onclick="downloadJobById('${encodeURIComponent(id)}'); return false;">Scarica</a>` : 'In elaborazione'}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                document.getElementById('jobsContainer').innerHTML = html;
+            } catch (err) {
+                showLoading('jobsContainer', false);
+                showMessage('jobsContainer', err.message, 'error');
+            }
+        }
+
+        async function downloadJobById(encodedId) {
+            const jobId = decodeURIComponent(encodedId || '');
+            if (!jobId) {
+                return;
+            }
+            try {
+                const blob = await apiFetchBlob(`/jobs/${encodeURIComponent(jobId)}/download`);
+                downloadBlob(blob, `audio_${jobId}.mp3`);
+            } catch (err) {
+                showMessage('jobsContainer', err.message, 'error');
+            }
+        }
+
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+                document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+                const tabName = e.target.dataset.tab;
+                document.getElementById(tabName).classList.add('active');
+                e.target.classList.add('active');
+            });
+        });
+
+        loadConfig();
+        window.addEventListener('error', (ev) => {
+            logError('JS', ev?.message || 'window error', {
+                source: ev?.filename || '',
+                line: ev?.lineno || 0,
+                col: ev?.colno || 0,
+            });
+            refreshDebugLogView();
+        });
+        window.addEventListener('unhandledrejection', (ev) => {
+            const reason = ev?.reason;
+            logError('JS', 'Unhandled promise rejection', {
+                reason: reason?.message || String(reason || ''),
+            });
+            refreshDebugLogView();
+        });
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('apiBaseUrl').addEventListener('change', saveConfig);
+            document.getElementById('apiKey').addEventListener('change', saveConfig);
+            setRecordingUiState('idle');
+            logInfo('APP', 'DOMContentLoaded', {
+                userAgent: navigator.userAgent,
+                mediaDevices: Boolean(navigator.mediaDevices),
+                getUserMedia: Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+                mediaRecorder: Boolean(window.MediaRecorder),
+            });
+            refreshDebugLogView();
+            refreshBackendCapabilities();
+            refreshProfiles();
+            testConnection();
+        });
+    </script>
+</body>
+</html>

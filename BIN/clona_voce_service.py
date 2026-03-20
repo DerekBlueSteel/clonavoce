@@ -310,7 +310,8 @@ def _run_synthesize_job(job_id: str, payload: SynthesizeRequest) -> None:
                 state.output_path = str(output_path)
             else:
                 state.status = "failed"
-                state.error = "Sintesi fallita"
+                stderr_snippet = _tail_text(completed.stderr, 800).strip()
+                state.error = f"Sintesi fallita (rc={completed.returncode}){': ' + stderr_snippet if stderr_snippet else ''}"
     except Exception as exc:
         with jobs_lock:
             state = jobs[job_id]

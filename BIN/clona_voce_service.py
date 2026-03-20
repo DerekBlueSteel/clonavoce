@@ -44,6 +44,7 @@ API_KEY = os.getenv("CLONAVOCE_API_KEY", "").strip()
 REMOTE_XTTS_URL = os.getenv("CLONAVOCE_REMOTE_XTTS_URL", "").strip()
 REMOTE_XTTS_KEY = os.getenv("CLONAVOCE_REMOTE_XTTS_KEY", "").strip()
 REMOTE_XTTS_TIMEOUT = int(os.getenv("CLONAVOCE_REMOTE_XTTS_TIMEOUT_SECONDS", "180"))
+APP_BUILD = os.getenv("CLONAVOCE_APP_BUILD", "dev").strip() or "dev"
 
 API_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -348,6 +349,14 @@ def _try_remote_xtts(payload: SynthesizeRequest, output_path: Path) -> tuple[boo
     }
     # Keep sample-driven synthesis, but include profile for remote APIs that validate
     # it as a required field even when samples are provided.
+    logger.info(
+        "Remote XTTS payload ready: build=%s profile=%s samples=%d format=%s text_len=%d",
+        APP_BUILD,
+        payload.profile,
+        len(samples),
+        payload.format,
+        len(str(payload.text or "")),
+    )
     body = json.dumps(request_payload).encode("utf-8")
     headers = {
         "Content-Type": "application/json",
@@ -648,6 +657,7 @@ def _startup() -> None:
         API_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         logger.info(f"Output directories ready: {API_OUTPUT_DIR}")
         logger.info(f"API Key configured: {bool(API_KEY)}")
+        logger.info(f"App build marker: {APP_BUILD}")
         logger.info("Startup complete")
     except Exception as exc:
         logger.error(f"Startup failed: {exc}", exc_info=True)
@@ -655,7 +665,7 @@ def _startup() -> None:
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"ok": True, "service": "clonavoce"}
+    return {"ok": True, "service": "clonavoce", "build": APP_BUILD}
 
 
 @app.get("/health/private")
@@ -664,6 +674,7 @@ def health_private(_: None = Depends(_auth)) -> dict[str, Any]:
     return {
         "ok": True,
         "service": "clonavoce",
+        "build": APP_BUILD,
         "workers": MAX_WORKERS,
         "jobs": len(jobs),
         "remote_xtts_configured": bool(REMOTE_XTTS_URL),

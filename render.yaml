@@ -9,6 +9,8 @@ services:
     envVars:
       - key: CLONAVOCE_API_KEY
         sync: false
+      - key: CLONAVOCE_APP_BUILD
+        value: "bac8298"
       - key: CLONAVOCE_MAX_WORKERS
         value: "2"
       - key: CLONAVOCE_JOB_TTL_SECONDS

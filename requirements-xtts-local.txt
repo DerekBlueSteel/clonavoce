@@ -1,0 +1,20 @@
+# Dipendenze per il server XTTS locale (clona_voce_remote_xtts_server.py)
+# Versioni pin verificate il 2026-03-20 su Python 3.11 + CPU.
+#
+# IMPORTANTE: torch 2.5.1 e torchaudio 2.5.1 vanno installati dall'indice PyTorch CPU
+#   pip install --index-url https://download.pytorch.org/whl/cpu torch==2.5.1 torchaudio==2.5.1
+#   (gestito automaticamente da AVVIA_XTTS_LOCALE.bat)
+#
+# transformers DEVE essere <=4.40 perche 4.41+ rimuove BeamSearchScorer usato da TTS 0.22.
+# torch 2.6+ attiva weights_only=True di default, rompendo il checkpoint XTTS; 2.5.1 e' safe.
+# torchaudio 2.10+ usa torchcodec/libtorchcodec che non e' disponibile su CPU Windows; 2.5.1 e' safe.
+
+fastapi>=0.100,<0.140
+uvicorn[standard]>=0.20,<0.50
+pydantic>=2.0,<3.0
+soundfile>=0.12
+transformers==4.40.2
+TTS==0.22.0
+numpy>=1.24,<2.0
+scipy>=1.11
+librosa>=0.10

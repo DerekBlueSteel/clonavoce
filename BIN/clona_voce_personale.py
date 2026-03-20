@@ -849,6 +849,24 @@ def synthesize_with_xtts(
 ) -> str:
     XTTS_MPL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("MPLCONFIGDIR", str(XTTS_MPL_CACHE_DIR))
+    os.environ.setdefault("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
+
+    # XTTS carica checkpoint trusted del modello; con PyTorch 2.6 il default
+    # weights_only=True rompe il loading di config custom come XttsConfig.
+    try:
+        import torch
+
+        if callable(getattr(torch, "load", None)) and not getattr(torch, "_clonavoce_xtts_load_patch", False):
+            original_torch_load = torch.load
+
+            def _clonavoce_torch_load(*args, **kwargs):
+                kwargs.setdefault("weights_only", False)
+                return original_torch_load(*args, **kwargs)
+
+            torch.load = _clonavoce_torch_load
+            torch._clonavoce_xtts_load_patch = True
+    except Exception:
+        pass
 
     # Evita FutureWarning di torch.load su stderr che in alcuni ambienti PowerShell
     # viene interpretato come errore nonostante la sintesi sia riuscita.

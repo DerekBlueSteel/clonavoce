@@ -299,6 +299,34 @@ def _run_synthesize_job(job_id: str, payload: SynthesizeRequest) -> None:
             errors="replace",
             check=False,
         )
+
+        # On lightweight deployments XTTS deps may be absent; retry once with pyttsx3 fallback.
+        combined_err = f"{completed.stdout}\n{completed.stderr}".lower()
+        needs_tts_fallback = (
+            completed.returncode != 0
+            and "no module named 'tts'" in combined_err
+            and payload.engine in {"auto", "xtts"}
+        )
+        if needs_tts_fallback:
+            fallback_cmd = list(cmd)
+            try:
+                engine_idx = fallback_cmd.index("--engine") + 1
+                fallback_cmd[engine_idx] = "pyttsx3"
+            except Exception:
+                pass
+            fallback = subprocess.run(
+                fallback_cmd,
+                cwd=str(BASE_DIR),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+            if fallback.returncode == 0 and output_path.exists():
+                completed = fallback
+                completed.stderr = (completed.stderr or "") + "\n[fallback] XTTS non disponibile, usato pyttsx3"
+
         with jobs_lock:
             state = jobs[job_id]
             state.return_code = int(completed.returncode)

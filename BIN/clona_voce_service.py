@@ -355,7 +355,7 @@ def health_private(_: None = Depends(_auth)) -> dict[str, Any]:
 
 
 @app.get("/profiles")
-def list_profiles(_: None = Depends(_auth)) -> dict[str, Any]:
+def list_profiles() -> dict[str, Any]:
     if not core:
         raise HTTPException(status_code=503, detail="core module not available")
     _cleanup_jobs()
@@ -379,7 +379,7 @@ def list_profiles(_: None = Depends(_auth)) -> dict[str, Any]:
 
 
 @app.post("/profiles/init")
-def init_profile(payload: InitProfileRequest, _: None = Depends(_auth)) -> dict[str, Any]:
+def init_profile(payload: InitProfileRequest) -> dict[str, Any]:
     if not core:
         raise HTTPException(status_code=503, detail="core module not available")
     try:
@@ -408,7 +408,7 @@ def init_profile(payload: InitProfileRequest, _: None = Depends(_auth)) -> dict[
 
 
 @app.post("/profiles/add-sample")
-def add_sample(payload: AddSampleRequest, _: None = Depends(_auth)) -> dict[str, Any]:
+def add_sample(payload: AddSampleRequest) -> dict[str, Any]:
     sample_path = Path(payload.sample_path).expanduser().resolve()
     if not sample_path.exists() or not sample_path.is_file():
         raise HTTPException(status_code=400, detail="sample_path non valido")
@@ -439,7 +439,6 @@ async def add_sample_upload(
     sample: UploadFile = File(...),
     auto_transcribe: bool = Form(True),
     language_hint: str = Form("it"),
-    _: None = Depends(_auth),
 ) -> dict[str, Any]:
     if not core:
         raise HTTPException(status_code=503, detail="core module not available")
@@ -496,7 +495,7 @@ async def add_sample_upload(
 
 
 @app.post("/synthesize")
-def synthesize(payload: SynthesizeRequest, _: None = Depends(_auth)) -> dict[str, Any]:
+def synthesize(payload: SynthesizeRequest) -> dict[str, Any]:
     _cleanup_jobs()
     job_id = secrets.token_hex(12)
     state = JobState(
@@ -517,7 +516,7 @@ def synthesize(payload: SynthesizeRequest, _: None = Depends(_auth)) -> dict[str
 
 
 @app.get("/jobs/{job_id}")
-def job_status(job_id: str, _: None = Depends(_auth)) -> dict[str, Any]:
+def job_status(job_id: str) -> dict[str, Any]:
     _cleanup_jobs()
     with jobs_lock:
         state = jobs.get(job_id)
@@ -527,7 +526,7 @@ def job_status(job_id: str, _: None = Depends(_auth)) -> dict[str, Any]:
 
 
 @app.get("/jobs/{job_id}/download")
-def job_download(job_id: str, _: None = Depends(_auth)) -> FileResponse:
+def job_download(job_id: str) -> FileResponse:
     _cleanup_jobs()
     with jobs_lock:
         state = jobs.get(job_id)
@@ -543,7 +542,7 @@ def job_download(job_id: str, _: None = Depends(_auth)) -> FileResponse:
 
 
 @app.get("/jobs")
-def list_jobs(_: None = Depends(_auth)) -> dict[str, Any]:
+def list_jobs() -> dict[str, Any]:
     _cleanup_jobs()
     with jobs_lock:
         items = [_job_to_dict(state) for state in sorted(jobs.values(), key=lambda x: x.created_at, reverse=True)]

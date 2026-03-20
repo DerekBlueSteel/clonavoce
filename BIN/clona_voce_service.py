@@ -351,7 +351,13 @@ def _run_synthesize_job(job_id: str, payload: SynthesizeRequest) -> None:
     output_path = API_OUTPUT_DIR / f"{safe_profile}_{job_id}.{output_ext}"
 
     try_remote = bool(REMOTE_XTTS_URL) and payload.engine in {"auto", "xtts"}
+    remote_attempted = False
+    remote_error = ""
+    allow_local_xtts_fallback_after_remote = os.getenv(
+        "CLONAVOCE_ALLOW_LOCAL_XTTS_FALLBACK_AFTER_REMOTE", "0"
+    ).strip() == "1"
     if try_remote:
+        remote_attempted = True
         try:
             _validate_profile_token(payload.profile, payload.confirmation_token)
             ok, msg = _try_remote_xtts(payload, output_path)
@@ -365,9 +371,21 @@ def _run_synthesize_job(job_id: str, payload: SynthesizeRequest) -> None:
                     state.status = "done"
                     state.output_path = str(output_path)
                 return
+            remote_error = str(msg or "errore remoto sconosciuto")
             logger.warning("Remote XTTS fallita, fallback locale: %s", msg)
         except Exception as exc:
+            remote_error = str(exc)
             logger.warning("Remote XTTS non disponibile, fallback locale: %s", exc)
+
+    # Per evitare falsi negativi "TTS mancante" su backend Render, di default NON
+    # facciamo fallback locale quando il remoto e' configurato ma fallisce.
+    if remote_attempted and remote_error and not allow_local_xtts_fallback_after_remote:
+        with jobs_lock:
+            state = jobs[job_id]
+            state.finished_at = time.time()
+            state.status = "failed"
+            state.error = f"Sintesi XTTS remota non riuscita: {remote_error}"
+        return
 
     cmd = [
         sys.executable,
@@ -453,6 +471,9 @@ def _run_synthesize_job(job_id: str, payload: SynthesizeRequest) -> None:
                 state.status = "failed"
                 low = f"{completed.stdout}\n{completed.stderr}".lower()
                 if "no module named 'tts'" in low:
+                    if remote_attempted and remote_error:
+                        state.error = f"Sintesi XTTS remota non riuscita: {remote_error}"
+                        return
                     state.error = "Sintesi XTTS non disponibile sul server (modulo TTS mancante). Qualita alta non disponibile finche XTTS non viene installato."
                     return
                 stderr_snippet = _tail_text(completed.stderr, 800).strip()
@@ -496,6 +517,9 @@ def health_private(_: None = Depends(_auth)) -> dict[str, Any]:
         "service": "clonavoce",
         "workers": MAX_WORKERS,
         "jobs": len(jobs),
+        "remote_xtts_configured": bool(REMOTE_XTTS_URL),
+        "remote_xtts_timeout_seconds": REMOTE_XTTS_TIMEOUT,
+        "remote_xtts_url_preview": REMOTE_XTTS_URL[:120] if REMOTE_XTTS_URL else "",
     }
 
 

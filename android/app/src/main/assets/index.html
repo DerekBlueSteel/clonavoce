@@ -188,6 +188,11 @@
         .btn-secondary:active {
             background: #d0d0d0;
         }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
         
         .btn-small {
             padding: 8px 12px;
@@ -440,6 +445,30 @@
                         <option value="calmo">Calmo</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <label>Accento / inflessione</label>
+                    <select id="accent">
+                        <option value="italiano_standard">Italiano standard</option>
+                        <option value="napoletano">Napoletano</option>
+                        <option value="siciliano">Siciliano</option>
+                        <option value="romana">Romana</option>
+                        <option value="toscana">Toscana</option>
+                        <option value="lombarda">Lombarda</option>
+                        <option value="english_uk">English UK</option>
+                        <option value="english_us">English US</option>
+                        <option value="english_irish">English Irish</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Pitch</label>
+                    <input type="range" id="pitch" min="-24" max="24" step="1" value="0" style="width: 100%;">
+                    <div class="text-muted" id="pitchValue">0 st</div>
+                </div>
+                <div class="form-group">
+                    <label>Volume</label>
+                    <input type="range" id="volume" min="-24" max="24" step="0.5" value="0" style="width: 100%;">
+                    <div class="text-muted" id="volumeValue">0.0 dB</div>
+                </div>
             </div>
 
             <div class="settings-group">
@@ -494,10 +523,6 @@
             <div class="settings-group">
                 <div class="settings-group-title">Crea nuovo profilo</div>
                 <div class="form-group">
-                    <label>ID profilo</label>
-                    <input type="text" id="newProfileId" placeholder="es. mia_voce">
-                </div>
-                <div class="form-group">
                     <label>Nome visualizzato</label>
                     <input type="text" id="newProfileName" placeholder="es. La mia voce">
                 </div>
@@ -522,9 +547,10 @@
                 </div>
 
                 <div class="button-group">
-                    <button class="btn-secondary" onclick="uploadRecordedSampleAndCompare()">Carica sample e confronta</button>
+                    <button class="btn-secondary" id="uploadCompareBtn" onclick="uploadRecordedSampleAndCompare()">Carica sample e confronta</button>
                     <button class="btn-secondary" onclick="clearRecordedSample()">Annulla registrazione</button>
                 </div>
+                <div class="text-muted" id="uploadStatusText" style="margin-top: 8px;">In attesa di upload.</div>
 
                 <div class="form-group" style="margin-top: 10px;">
                     <label>Testo estratto dal sample</label>
@@ -571,7 +597,80 @@
                 <label>Formato</label>
                 <select id="format">
                     <option value="mp3" selected>MP3</option>
+                    <option value="wav">WAV</option>
                 </select>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-group-title">Parametri solo per questa sintesi</div>
+                <div class="text-muted" style="margin-bottom: 8px;">Questi valori non vengono salvati come default del profilo.</div>
+                <div class="button-group" style="margin-bottom: 10px;">
+                    <button class="btn-secondary" onclick="copySynthesisParamsFromSettings()">Copia da Impostazioni</button>
+                </div>
+                <div class="form-group">
+                    <label>Motore (job)</label>
+                    <select id="synthEngine">
+                        <option value="auto">Auto</option>
+                        <option value="pyttsx3">pyttsx3</option>
+                        <option value="xtts">xtts</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Lingua (job)</label>
+                    <select id="synthLanguage">
+                        <option value="it">Italiano</option>
+                        <option value="en">Inglese</option>
+                        <option value="es">Spagnolo</option>
+                        <option value="fr">Francese</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Umore (job)</label>
+                    <select id="synthMood">
+                        <option value="neutro">Neutro</option>
+                        <option value="felice">Felice</option>
+                        <option value="triste">Triste</option>
+                        <option value="arrabbiato">Arrabbiato</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Preset (job)</label>
+                    <select id="synthPreset">
+                        <option value="professionale">Professionale</option>
+                        <option value="casual">Casual</option>
+                        <option value="energico">Energico</option>
+                        <option value="calmo">Calmo</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Accento (job)</label>
+                    <select id="synthAccent">
+                        <option value="italiano_standard">Italiano standard</option>
+                        <option value="napoletano">Napoletano</option>
+                        <option value="siciliano">Siciliano</option>
+                        <option value="romana">Romana</option>
+                        <option value="toscana">Toscana</option>
+                        <option value="lombarda">Lombarda</option>
+                        <option value="english_uk">English UK</option>
+                        <option value="english_us">English US</option>
+                        <option value="english_irish">English Irish</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Velocita (job)</label>
+                    <input type="range" id="synthSpeed" min="0.5" max="2.0" step="0.1" value="1.0" style="width: 100%;">
+                    <div class="text-muted" id="synthSpeedValue">1.0x</div>
+                </div>
+                <div class="form-group">
+                    <label>Pitch (job)</label>
+                    <input type="range" id="synthPitch" min="-24" max="24" step="1" value="0" style="width: 100%;">
+                    <div class="text-muted" id="synthPitchValue">0 st</div>
+                </div>
+                <div class="form-group">
+                    <label>Volume (job)</label>
+                    <input type="range" id="synthVolume" min="-24" max="24" step="0.5" value="0" style="width: 100%;">
+                    <div class="text-muted" id="synthVolumeValue">0.0 dB</div>
+                </div>
             </div>
 
             <div id="synthProgress" style="display: none;">
@@ -583,7 +682,15 @@
 
             <div class="button-group">
                 <button class="btn-primary" onclick="synthesizeAudio()">Genera audio</button>
-                <button class="btn-secondary" onclick="shareGeneratedAudio()">Condividi audio</button>
+                <button class="btn-secondary" id="saveGeneratedAudioButton" onclick="saveGeneratedAudio()" disabled>Salva audio</button>
+                <button class="btn-secondary" id="shareGeneratedAudioWhatsappButton" onclick="shareGeneratedAudioToWhatsApp()" disabled>WhatsApp</button>
+                <button class="btn-secondary" id="shareGeneratedAudioButton" onclick="shareGeneratedAudio()" disabled>Condividi audio</button>
+            </div>
+
+            <div class="settings-group" id="synthResultCard" style="display: none; margin-top: 16px;">
+                <div class="settings-group-title">Anteprima audio generato</div>
+                <audio id="generatedAudioPlayer" controls style="width: 100%;"></audio>
+                <div class="text-muted" id="generatedAudioMeta" style="margin-top: 8px;">Dopo la sintesi potrai ascoltare, salvare o condividere il file.</div>
             </div>
 
             <div id="synthMessage"></div>
@@ -591,7 +698,10 @@
         
         <!-- JOBS TAB -->
         <div class="tab-content" id="jobs">
-            <button class="btn-secondary" style="width: 100%; margin-bottom: 16px;" onclick="refreshJobs()">Aggiorna job</button>
+            <div class="button-group full" style="margin-bottom: 16px;">
+                <button class="btn-secondary" onclick="refreshJobs()">Aggiorna job</button>
+                <button class="btn-secondary" id="deleteAllJobsBtn" onclick="deleteAllJobs()">Elimina tutti i job</button>
+            </div>
             
             <div id="jobsContainer"></div>
         </div>
@@ -607,12 +717,22 @@
         };
         const capabilities = {
             sampleUpload: null,
+            canCreateProfile: null,
+            canDeleteProfile: null,
+            canDeleteSample: null,
+            canProfileDefaults: null,
+            canDeleteJob: null,
+            canDeleteAllJobs: null,
             openapiChecked: false,
         };
 
         let currentProfiles = [];
         let currentOriginalAudioUrl = '';
         let currentAiAudioUrl = '';
+        let currentGeneratedAudioUrl = '';
+        const jobAudioBlobCache = new Map();
+        const jobAudioUrlCache = new Map();
+        const jobMetaCache = new Map();
         let recordedBlob = null;
         let mediaRecorder = null;
         let mediaStream = null;
@@ -625,6 +745,12 @@
         let recordingMode = '';
         let nativeRecordingPending = false;
         let nativeRecordingActive = false;
+        let uploadInProgress = false;
+        let uploadProgressTimer = null;
+        let uploadStartTs = 0;
+        let uploadStage = '';
+        let uploadActivityText = '';
+        let uploadEstimateTotalSec = 0;
         let recordingUiState = 'idle';
         let recordingStopNotBeforeTs = 0;
         let pendingStopTimer = null;
@@ -636,6 +762,81 @@
                 clearTimeout(pendingStopTimer);
                 pendingStopTimer = null;
             }
+        }
+
+        function clearUploadProgressTimer() {
+            if (uploadProgressTimer) {
+                clearInterval(uploadProgressTimer);
+                uploadProgressTimer = null;
+            }
+        }
+
+        function updateUploadStatusText(text) {
+            const el = document.getElementById('uploadStatusText');
+            if (el) {
+                el.textContent = text;
+            }
+        }
+
+        function setUploadActivity(text, estimateTotalSec = 0) {
+            uploadActivityText = String(text || '').trim() || 'Elaborazione in corso';
+            uploadEstimateTotalSec = Math.max(0, Number(estimateTotalSec) || 0);
+        }
+
+        function setUploadButtonBusy(isBusy) {
+            const btn = document.getElementById('uploadCompareBtn');
+            if (!btn) {
+                return;
+            }
+            btn.disabled = Boolean(isBusy);
+            btn.textContent = isBusy ? 'Elaborazione in corso...' : 'Carica sample e confronta';
+        }
+
+        function startUploadProgress(stage) {
+            uploadStage = stage || 'upload';
+            uploadStartTs = Date.now();
+            if (uploadStage === 'upload') {
+                setUploadActivity('Verifica backend e preparazione upload sample', 120);
+            } else if (uploadStage === 'synthesis') {
+                setUploadActivity('Sintesi voce AI in corso sul server', 90);
+            } else {
+                setUploadActivity('Elaborazione in corso', 0);
+            }
+            setUploadButtonBusy(true);
+            clearUploadProgressTimer();
+            uploadProgressTimer = setInterval(() => {
+                const elapsedSec = Math.max(0, Math.round((Date.now() - uploadStartTs) / 1000));
+                if (uploadEstimateTotalSec > 0) {
+                    const remaining = Math.max(0, uploadEstimateTotalSec - elapsedSec);
+                    updateUploadStatusText(`${uploadActivityText}: ${elapsedSec}s trascorsi, stima residua ${remaining}s`);
+                    return;
+                }
+                updateUploadStatusText(`${uploadActivityText}: ${elapsedSec}s trascorsi`);
+            }, 1000);
+        }
+
+        function switchUploadStage(stage) {
+            uploadStage = stage || uploadStage;
+            uploadStartTs = Date.now();
+            if (uploadStage === 'upload') {
+                setUploadActivity('Upload sample e trascrizione in corso', 120);
+            } else if (uploadStage === 'synthesis') {
+                setUploadActivity('Sintesi voce AI in corso sul server', 90);
+            }
+        }
+
+        function finishUploadProgress(successText = '') {
+            clearUploadProgressTimer();
+            setUploadButtonBusy(false);
+            if (successText) {
+                updateUploadStatusText(successText);
+            } else {
+                updateUploadStatusText('In attesa di upload.');
+            }
+            uploadStage = '';
+            uploadStartTs = 0;
+            uploadActivityText = '';
+            uploadEstimateTotalSec = 0;
         }
 
         function setRecordingUiState(nextState) {
@@ -807,6 +1008,17 @@
             }
         }
 
+        function clearExtractedTextForNewSample() {
+            const extracted = document.getElementById('transcriptionOutput');
+            if (extracted) {
+                extracted.value = '';
+            }
+            const synthText = document.getElementById('textToSynthesize');
+            if (synthText) {
+                synthText.value = '';
+            }
+        }
+
         function normalizeProfileId(value) {
             const raw = String(value || '').trim().toLowerCase();
             const cleaned = raw.replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -936,18 +1148,34 @@
                 headers['X-API-Key'] = config.apiKey;
             }
             const url = config.baseUrl + path;
-            const resp = await fetch(url, {
-                method: 'POST',
-                headers,
-                body: formData,
-            });
-            const data = await decodeResponse(resp);
-            if (!resp.ok) {
-                logError('API', `POST ${path} upload fail`, { status: resp.status, detail: data?.detail || '', elapsedMs: Date.now() - startedAt });
-                throw new Error(String(data.detail || `HTTP ${resp.status}`));
+            const controller = new AbortController();
+            const timeoutMs = 120000;
+            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+            logInfo('API', `POST ${path} upload start`, { hasPayload: true, timeoutMs });
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers,
+                    body: formData,
+                    signal: controller.signal,
+                });
+                const data = await decodeResponse(resp);
+                if (!resp.ok) {
+                    logError('API', `POST ${path} upload fail`, { status: resp.status, detail: data?.detail || '', elapsedMs: Date.now() - startedAt });
+                    throw new Error(String(data.detail || `HTTP ${resp.status}`));
+                }
+                logInfo('API', `POST ${path} upload ok`, { status: resp.status, elapsedMs: Date.now() - startedAt });
+                return data;
+            } catch (err) {
+                const isAbort = err && (err.name === 'AbortError');
+                logError('API', `POST ${path} upload fail`, {
+                    error: isAbort ? `Timeout dopo ${timeoutMs}ms` : (err?.message || String(err)),
+                    elapsedMs: Date.now() - startedAt,
+                });
+                throw new Error(isAbort ? `Timeout upload (${Math.round(timeoutMs / 1000)}s)` : (err?.message || String(err)));
+            } finally {
+                clearTimeout(timeoutId);
             }
-            logInfo('API', `POST ${path} upload ok`, { status: resp.status, elapsedMs: Date.now() - startedAt });
-            return data;
         }
 
         async function apiFetchBlob(path) {
@@ -970,25 +1198,71 @@
         async function refreshBackendCapabilities() {
             saveConfig();
             const openapiUrl = config.baseUrl + '/openapi.json';
+            const controller = new AbortController();
+            const timeoutMs = 5000;
+            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+            const hasMethod = (spec, path, method) => {
+                return Boolean(spec && spec.paths && spec.paths[path] && spec.paths[path][method]);
+            };
             try {
-                const resp = await fetch(openapiUrl, { method: 'GET' });
+                const resp = await fetch(openapiUrl, { method: 'GET', signal: controller.signal });
                 if (!resp.ok) {
                     throw new Error(`HTTP ${resp.status}`);
                 }
                 const spec = await resp.json();
-                const hasUpload = Boolean(spec && spec.paths && spec.paths['/profiles/add-sample-upload']);
+                const hasUpload = hasMethod(spec, '/profiles/add-sample-upload', 'post');
                 capabilities.sampleUpload = hasUpload;
+                capabilities.canCreateProfile = hasMethod(spec, '/profiles/create', 'post') || hasMethod(spec, '/profiles/init', 'post');
+                capabilities.canDeleteProfile = hasMethod(spec, '/profiles/{profile}', 'delete');
+                capabilities.canDeleteSample = hasMethod(spec, '/profiles/{profile}/samples/{sample_filename}', 'delete');
+                capabilities.canProfileDefaults = hasMethod(spec, '/profiles/{profile}/defaults', 'post');
+                capabilities.canDeleteJob = hasMethod(spec, '/jobs/{job_id}', 'delete');
+                capabilities.canDeleteAllJobs = hasMethod(spec, '/jobs', 'delete');
                 capabilities.openapiChecked = true;
+                updateCapabilitiesUi();
                 logInfo('API', 'OpenAPI capabilities rilevate', {
                     sampleUpload: hasUpload,
+                    canCreateProfile: capabilities.canCreateProfile,
+                    canDeleteProfile: capabilities.canDeleteProfile,
+                    canDeleteSample: capabilities.canDeleteSample,
+                    canProfileDefaults: capabilities.canProfileDefaults,
+                    canDeleteJob: capabilities.canDeleteJob,
+                    canDeleteAllJobs: capabilities.canDeleteAllJobs,
                     version: spec?.info?.version || '',
                 });
                 return hasUpload;
             } catch (err) {
                 capabilities.sampleUpload = null;
+                capabilities.canCreateProfile = null;
+                capabilities.canDeleteProfile = null;
+                capabilities.canDeleteSample = null;
+                capabilities.canProfileDefaults = null;
+                capabilities.canDeleteJob = null;
+                capabilities.canDeleteAllJobs = null;
                 capabilities.openapiChecked = true;
+                updateCapabilitiesUi();
                 logWarn('API', 'OpenAPI capabilities non disponibili', { error: err?.message || String(err) });
                 return null;
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        }
+
+        function isDeleteUnsupportedError(err) {
+            const msg = String(err?.message || '').toLowerCase();
+            if (msg.includes('method not allowed') || msg.includes('405')) {
+                return true;
+            }
+            // FastAPI default when route does not exist on older backend builds.
+            return msg.includes(': not found');
+        }
+
+        function updateCapabilitiesUi() {
+            const deleteAllBtn = document.getElementById('deleteAllJobsBtn');
+            if (deleteAllBtn) {
+                const supported = capabilities.canDeleteAllJobs !== false;
+                deleteAllBtn.disabled = !supported;
+                deleteAllBtn.title = supported ? '' : 'Non supportato dal backend attuale';
             }
         }
 
@@ -996,14 +1270,8 @@
             document.getElementById('statusText').textContent = 'Test connessione in corso...';
             try {
                 const pub = await apiRequest('GET', '/health');
-                try {
-                    const priv = await apiRequest('GET', '/health/private');
-                    document.getElementById('statusText').textContent = 'Online connesso';
-                    showMessage('settingsMessage', `Connessione OK. Health: ${JSON.stringify(pub)} | Privato: ${JSON.stringify(priv)}`, 'success');
-                } catch (privErr) {
-                    document.getElementById('statusText').textContent = 'Online connesso (privato KO)';
-                    showMessage('settingsMessage', `Endpoint pubblico OK. Endpoint privato KO: ${privErr.message}`, 'info');
-                }
+                document.getElementById('statusText').textContent = 'Online connesso';
+                showMessage('settingsMessage', `Connessione OK. Health: ${JSON.stringify(pub)}`, 'success');
             } catch (err) {
                 document.getElementById('statusText').textContent = 'Connessione fallita';
                 showMessage('settingsMessage', err.message, 'error');
@@ -1013,6 +1281,131 @@
         document.getElementById('speed').addEventListener('input', (e) => {
             document.getElementById('speedValue').textContent = parseFloat(e.target.value).toFixed(1) + 'x';
         });
+
+        document.getElementById('pitch').addEventListener('input', (e) => {
+            document.getElementById('pitchValue').textContent = `${parseInt(e.target.value, 10)} st`;
+        });
+
+        document.getElementById('volume').addEventListener('input', (e) => {
+            document.getElementById('volumeValue').textContent = `${parseFloat(e.target.value).toFixed(1)} dB`;
+        });
+
+        document.getElementById('synthSpeed').addEventListener('input', (e) => {
+            document.getElementById('synthSpeedValue').textContent = parseFloat(e.target.value).toFixed(1) + 'x';
+        });
+
+        document.getElementById('synthPitch').addEventListener('input', (e) => {
+            document.getElementById('synthPitchValue').textContent = `${parseInt(e.target.value, 10)} st`;
+        });
+
+        document.getElementById('synthVolume').addEventListener('input', (e) => {
+            document.getElementById('synthVolumeValue').textContent = `${parseFloat(e.target.value).toFixed(1)} dB`;
+        });
+
+        function getProfileById(profile) {
+            return currentProfiles.find(item => String(item.profile || '') === String(profile || '')) || null;
+        }
+
+        function getProfileDefaults(profile) {
+            const p = getProfileById(profile);
+            const d = (p && p.defaults && typeof p.defaults === 'object') ? p.defaults : {};
+            return {
+                engine: String(d.engine || 'auto'),
+                language: String(d.language || 'it'),
+                mood: String(d.mood || 'neutro'),
+                preset: String(d.preset || 'professionale'),
+                accent: String(d.accent || 'italiano_standard'),
+                speed: Number(d.speed || 1.0),
+                pitch: Number(d.pitch || 0),
+                volume: Number(d.volume || 0.0),
+                format: String(d.format || 'mp3'),
+            };
+        }
+
+        function copySynthesisParamsFromSettings() {
+            document.getElementById('synthEngine').value = document.getElementById('engine').value;
+            document.getElementById('synthLanguage').value = document.getElementById('language').value;
+            document.getElementById('synthMood').value = document.getElementById('mood').value;
+            document.getElementById('synthPreset').value = document.getElementById('preset').value;
+            document.getElementById('synthAccent').value = document.getElementById('accent').value;
+            document.getElementById('synthSpeed').value = document.getElementById('speed').value;
+            document.getElementById('synthPitch').value = document.getElementById('pitch').value;
+            document.getElementById('synthVolume').value = document.getElementById('volume').value;
+            document.getElementById('synthSpeedValue').textContent = `${parseFloat(document.getElementById('synthSpeed').value).toFixed(1)}x`;
+            document.getElementById('synthPitchValue').textContent = `${parseInt(document.getElementById('synthPitch').value, 10)} st`;
+            document.getElementById('synthVolumeValue').textContent = `${parseFloat(document.getElementById('synthVolume').value).toFixed(1)} dB`;
+        }
+
+        function applyProfileDefaultsToSynthesis(profile) {
+            const d = getProfileDefaults(profile);
+            document.getElementById('synthEngine').value = d.engine;
+            document.getElementById('synthLanguage').value = d.language;
+            document.getElementById('synthMood').value = d.mood;
+            document.getElementById('synthPreset').value = d.preset;
+            document.getElementById('synthAccent').value = d.accent;
+            document.getElementById('synthSpeed').value = String(d.speed);
+            document.getElementById('synthPitch').value = String(d.pitch);
+            document.getElementById('synthVolume').value = String(d.volume);
+            document.getElementById('format').value = d.format;
+            document.getElementById('synthSpeedValue').textContent = `${Number(d.speed).toFixed(1)}x`;
+            document.getElementById('synthPitchValue').textContent = `${Number(d.pitch)} st`;
+            document.getElementById('synthVolumeValue').textContent = `${Number(d.volume).toFixed(1)} dB`;
+        }
+
+        function profileDefaultsBlock(profile, defaults) {
+            const encodedProfile = encodeURIComponent(profile);
+            const pid = normalizeProfileId(profile);
+            return `
+                <div class="settings-group" style="margin-top: 8px; margin-bottom: 0;">
+                    <div class="settings-group-title">Default profilo</div>
+                    <div class="form-group"><label>Motore</label><select id="def_engine_${pid}">
+                        <option value="auto" ${defaults.engine === 'auto' ? 'selected' : ''}>Auto</option>
+                        <option value="pyttsx3" ${defaults.engine === 'pyttsx3' ? 'selected' : ''}>pyttsx3</option>
+                        <option value="xtts" ${defaults.engine === 'xtts' ? 'selected' : ''}>xtts</option>
+                    </select></div>
+                    <div class="form-group"><label>Lingua</label><select id="def_language_${pid}">
+                        <option value="it" ${defaults.language === 'it' ? 'selected' : ''}>Italiano</option>
+                        <option value="en" ${defaults.language === 'en' ? 'selected' : ''}>Inglese</option>
+                        <option value="es" ${defaults.language === 'es' ? 'selected' : ''}>Spagnolo</option>
+                        <option value="fr" ${defaults.language === 'fr' ? 'selected' : ''}>Francese</option>
+                    </select></div>
+                    <div class="form-group"><label>Umore</label><select id="def_mood_${pid}">
+                        <option value="neutro" ${defaults.mood === 'neutro' ? 'selected' : ''}>Neutro</option>
+                        <option value="felice" ${defaults.mood === 'felice' ? 'selected' : ''}>Felice</option>
+                        <option value="triste" ${defaults.mood === 'triste' ? 'selected' : ''}>Triste</option>
+                        <option value="arrabbiato" ${defaults.mood === 'arrabbiato' ? 'selected' : ''}>Arrabbiato</option>
+                    </select></div>
+                    <div class="form-group"><label>Preset</label><select id="def_preset_${pid}">
+                        <option value="professionale" ${defaults.preset === 'professionale' ? 'selected' : ''}>Professionale</option>
+                        <option value="casual" ${defaults.preset === 'casual' ? 'selected' : ''}>Casual</option>
+                        <option value="energico" ${defaults.preset === 'energico' ? 'selected' : ''}>Energico</option>
+                        <option value="calmo" ${defaults.preset === 'calmo' ? 'selected' : ''}>Calmo</option>
+                    </select></div>
+                    <div class="form-group"><label>Accento</label><select id="def_accent_${pid}">
+                        <option value="italiano_standard" ${defaults.accent === 'italiano_standard' ? 'selected' : ''}>Italiano standard</option>
+                        <option value="napoletano" ${defaults.accent === 'napoletano' ? 'selected' : ''}>Napoletano</option>
+                        <option value="siciliano" ${defaults.accent === 'siciliano' ? 'selected' : ''}>Siciliano</option>
+                        <option value="romana" ${defaults.accent === 'romana' ? 'selected' : ''}>Romana</option>
+                        <option value="toscana" ${defaults.accent === 'toscana' ? 'selected' : ''}>Toscana</option>
+                        <option value="lombarda" ${defaults.accent === 'lombarda' ? 'selected' : ''}>Lombarda</option>
+                        <option value="english_uk" ${defaults.accent === 'english_uk' ? 'selected' : ''}>English UK</option>
+                        <option value="english_us" ${defaults.accent === 'english_us' ? 'selected' : ''}>English US</option>
+                        <option value="english_irish" ${defaults.accent === 'english_irish' ? 'selected' : ''}>English Irish</option>
+                    </select></div>
+                    <div class="form-group"><label>Velocita</label><input type="number" id="def_speed_${pid}" min="0.5" max="2.0" step="0.1" value="${Number(defaults.speed).toFixed(1)}"></div>
+                    <div class="form-group"><label>Pitch</label><input type="number" id="def_pitch_${pid}" min="-24" max="24" step="1" value="${Number(defaults.pitch)}"></div>
+                    <div class="form-group"><label>Volume</label><input type="number" id="def_volume_${pid}" min="-24" max="24" step="0.5" value="${Number(defaults.volume).toFixed(1)}"></div>
+                    <div class="form-group"><label>Formato</label><select id="def_format_${pid}">
+                        <option value="mp3" ${defaults.format === 'mp3' ? 'selected' : ''}>MP3</option>
+                        <option value="wav" ${defaults.format === 'wav' ? 'selected' : ''}>WAV</option>
+                    </select></div>
+                    <div class="button-group" style="margin-bottom: 0;">
+                        <button class="btn-secondary btn-small" onclick="saveProfileDefaultsById('${encodedProfile}', '${pid}')">Salva default</button>
+                        <button class="btn-secondary btn-small" onclick="useProfileDefaultsNow('${encodedProfile}')">Usa ora</button>
+                    </div>
+                </div>
+            `;
+        }
 
         async function refreshProfiles() {
             showLoading('profilesContainer', true);
@@ -1041,15 +1434,29 @@
 
                 const cards = currentProfiles.map(p => {
                     const profile = String(p.profile || '');
+                    const defaults = getProfileDefaults(profile);
+                    const samples = Array.isArray(p.samples) ? p.samples : [];
+                    const samplesHtml = samples.length
+                        ? `<div class="text-muted" style="margin-top: 6px;">Campioni:</div>` + samples.map(s => {
+                            const fname = String(s.filename || '');
+                            const dur = Number(s.duration_seconds || 0).toFixed(1);
+                            return `<div class="button-group" style="margin-top: 6px; margin-bottom: 0;">
+                                <span class="text-muted" style="flex:1; font-size: 12px;">${escapeHtml(fname)} (${dur}s)</span>
+                                <button class="btn-secondary btn-small" onclick="deleteSampleById('${encodeURIComponent(profile)}','${encodeURIComponent(fname)}')">Elimina</button>
+                            </div>`;
+                        }).join('')
+                        : '<div class="text-muted" style="margin-top: 6px;">Nessun campione</div>';
                     return `
                         <div class="profile-card">
                             <div class="profile-card-title">${escapeHtml(String(p.display_name || profile))}</div>
-                            <div class="profile-card-subtitle">ID: ${escapeHtml(profile)}</div>
                             <div class="profile-card-subtitle">Campioni: ${Number(p.sample_count || 0)}</div>
                             <div class="button-group" style="margin-top: 8px; margin-bottom: 0;">
                                 <button class="btn-secondary btn-small" onclick="selectProfile('${encodeURIComponent(profile)}')">Usa</button>
                                 <button class="btn-secondary btn-small" onclick="renameProfilePrompt('${encodeURIComponent(profile)}')">Rinomina</button>
+                                <button class="btn-secondary btn-small" onclick="deleteProfileById('${encodeURIComponent(profile)}')">Elimina</button>
                             </div>
+                            ${profileDefaultsBlock(profile, defaults)}
+                            ${samplesHtml}
                         </div>
                     `;
                 }).join('');
@@ -1076,13 +1483,16 @@
             document.getElementById('profileSelect').value = profile;
             document.getElementById('synthProfile').value = profile;
             onProfileChanged();
-            showMessage('profilesContainer', `Profilo selezionato: ${profile}`, 'success');
+            const selected = getProfileById(profile);
+            const label = selected ? String(selected.display_name || profile) : 'profilo selezionato';
+            showMessage('profilesContainer', `Profilo selezionato: ${label}`, 'success');
         }
 
         function onProfileChanged() {
             const profile = document.getElementById('profileSelect').value.trim();
             if (profile) {
                 document.getElementById('synthProfile').value = profile;
+                applyProfileDefaultsToSynthesis(profile);
             }
             document.getElementById('profileToken').value = getProfileToken(profile);
         }
@@ -1094,6 +1504,7 @@
             }
             document.getElementById('profileSelect').value = profile;
             document.getElementById('profileToken').value = getProfileToken(profile);
+            applyProfileDefaultsToSynthesis(profile);
         }
 
         function saveCurrentProfileToken() {
@@ -1108,21 +1519,34 @@
         }
 
         async function createProfile() {
-            const profileInput = document.getElementById('newProfileId').value.trim();
             const profileName = document.getElementById('newProfileName').value.trim();
-            if (!profileInput || !profileName) {
-                showMessage('profilesContainer', 'Compila ID profilo e nome', 'error');
+            if (!profileName) {
+                showMessage('profilesContainer', 'Compila il nome profilo', 'error');
                 return;
             }
-            const profile = normalizeProfileId(profileInput);
             try {
-                const result = await apiRequest('POST', '/profiles/init', { profile, display_name: profileName });
+                let result = null;
+                try {
+                    result = await apiRequest('POST', '/profiles/create', { display_name: profileName });
+                } catch (primaryErr) {
+                    const msg = String(primaryErr?.message || '').toLowerCase();
+                    const isMissingCreate = msg.includes('not found') || msg.includes('404');
+                    if (!isMissingCreate) {
+                        throw primaryErr;
+                    }
+                    // Legacy backend fallback: /profiles/init requires explicit profile id.
+                    const legacyProfileId = `${normalizeProfileId(profileName)}-${Date.now().toString(36)}`;
+                    result = await apiRequest('POST', '/profiles/init', {
+                        profile: legacyProfileId,
+                        display_name: profileName,
+                    });
+                }
+                const profile = String(result.profile || '').trim();
                 const token = String(result.confirmation_token || '').trim();
                 if (token) {
                     setProfileToken(profile, token);
                 }
-                showMessage('profilesContainer', `Profilo creato: ${profile}`, 'success');
-                document.getElementById('newProfileId').value = '';
+                showMessage('profilesContainer', `Profilo creato: ${profileName}`, 'success');
                 document.getElementById('newProfileName').value = '';
                 await refreshProfiles();
                 document.getElementById('profileSelect').value = profile;
@@ -1150,11 +1574,7 @@
                 return;
             }
             try {
-                const result = await apiRequest('POST', '/profiles/init', { profile, display_name: clean });
-                const token = String(result.confirmation_token || '').trim();
-                if (token) {
-                    setProfileToken(profile, token);
-                }
+                await apiRequest('POST', `/profiles/${encodeURIComponent(profile)}/display-name`, { display_name: clean });
                 await refreshProfiles();
                 document.getElementById('profileSelect').value = profile;
                 document.getElementById('synthProfile').value = profile;
@@ -1172,6 +1592,122 @@
                 return;
             }
             return renameProfilePrompt(encodeURIComponent(profile));
+        }
+
+        async function deleteProfileById(encodedProfile) {
+            const profile = decodeURIComponent(encodedProfile || '');
+            if (!profile) {
+                return;
+            }
+            if (capabilities.canDeleteProfile === false) {
+                showMessage('profilesContainer', 'Eliminazione profilo non supportata da questo backend.', 'error');
+                return;
+            }
+            const selected = getProfileById(profile);
+            const label = selected ? String(selected.display_name || profile) : profile;
+            if (!confirm(`Eliminare definitivamente il profilo "${label}" e tutti i campioni?`)) {
+                return;
+            }
+            try {
+                await apiRequest('DELETE', `/profiles/${encodeURIComponent(profile)}`);
+                setProfileToken(profile, '');
+                if (document.getElementById('profileSelect').value === profile) {
+                    document.getElementById('profileSelect').value = '';
+                    document.getElementById('synthProfile').value = '';
+                    document.getElementById('profileToken').value = '';
+                }
+                await refreshProfiles();
+                showMessage('profilesContainer', 'Profilo eliminato', 'success');
+            } catch (err) {
+                if (isDeleteUnsupportedError(err)) {
+                    capabilities.canDeleteProfile = false;
+                    updateCapabilitiesUi();
+                    showMessage('profilesContainer', 'Il server remoto non supporta ancora DELETE /profiles/{profile}.', 'error');
+                    return;
+                }
+                showMessage('profilesContainer', err.message, 'error');
+            }
+        }
+
+        async function deleteSampleById(encodedProfile, encodedSample) {
+            const profile = decodeURIComponent(encodedProfile || '');
+            const sample = decodeURIComponent(encodedSample || '');
+            if (!profile || !sample) {
+                return;
+            }
+            if (capabilities.canDeleteSample === false) {
+                showMessage('profilesContainer', 'Eliminazione campioni non supportata da questo backend.', 'error');
+                return;
+            }
+            if (!confirm(`Eliminare il campione "${sample}"?`)) {
+                return;
+            }
+            try {
+                await apiRequest('DELETE', `/profiles/${encodeURIComponent(profile)}/samples/${encodeURIComponent(sample)}`);
+                await refreshProfiles();
+                document.getElementById('profileSelect').value = profile;
+                document.getElementById('synthProfile').value = profile;
+                onProfileChanged();
+                showMessage('profilesContainer', 'Campione eliminato', 'success');
+            } catch (err) {
+                if (isDeleteUnsupportedError(err)) {
+                    capabilities.canDeleteSample = false;
+                    updateCapabilitiesUi();
+                    showMessage('profilesContainer', 'Il server remoto non supporta ancora DELETE dei campioni.', 'error');
+                    return;
+                }
+                showMessage('profilesContainer', err.message, 'error');
+            }
+        }
+
+        async function saveProfileDefaultsById(encodedProfile, idSuffix = '') {
+            const profile = decodeURIComponent(encodedProfile || '');
+            if (!profile) {
+                return;
+            }
+            if (capabilities.canProfileDefaults === false) {
+                showMessage('profilesContainer', 'Default profilo non supportati dal backend attuale.', 'error');
+                return;
+            }
+            const pid = idSuffix || normalizeProfileId(profile);
+            const payload = {
+                engine: document.getElementById(`def_engine_${pid}`).value,
+                language: document.getElementById(`def_language_${pid}`).value,
+                mood: document.getElementById(`def_mood_${pid}`).value,
+                preset: document.getElementById(`def_preset_${pid}`).value,
+                accent: document.getElementById(`def_accent_${pid}`).value,
+                speed: parseFloat(document.getElementById(`def_speed_${pid}`).value),
+                pitch: parseInt(document.getElementById(`def_pitch_${pid}`).value, 10),
+                volume: parseFloat(document.getElementById(`def_volume_${pid}`).value),
+                format: document.getElementById(`def_format_${pid}`).value,
+            };
+            try {
+                await apiRequest('POST', `/profiles/${encodeURIComponent(profile)}/defaults`, payload);
+                await refreshProfiles();
+                document.getElementById('profileSelect').value = profile;
+                document.getElementById('synthProfile').value = profile;
+                onProfileChanged();
+                showMessage('profilesContainer', 'Default profilo aggiornati', 'success');
+            } catch (err) {
+                if (isDeleteUnsupportedError(err)) {
+                    capabilities.canProfileDefaults = false;
+                    updateCapabilitiesUi();
+                    showMessage('profilesContainer', 'Il server remoto non supporta ancora /profiles/{profile}/defaults.', 'error');
+                    return;
+                }
+                showMessage('profilesContainer', err.message, 'error');
+            }
+        }
+
+        function useProfileDefaultsNow(encodedProfile) {
+            const profile = decodeURIComponent(encodedProfile || '');
+            if (!profile) {
+                return;
+            }
+            document.getElementById('profileSelect').value = profile;
+            document.getElementById('synthProfile').value = profile;
+            applyProfileDefaultsToSynthesis(profile);
+            showMessage('profilesContainer', 'Default applicati ai parametri della prossima sintesi', 'success');
         }
 
         function triggerSamplePicker() {
@@ -1197,6 +1733,8 @@
                 }
                 return;
             }
+
+            clearExtractedTextForNewSample();
 
             try {
                 const formData = new FormData();
@@ -1230,14 +1768,14 @@
                 profile,
                 text,
                 confirmation_token: token,
-                engine: document.getElementById('engine').value,
-                language: document.getElementById('language').value,
-                mood: document.getElementById('mood').value,
-                preset: document.getElementById('preset').value,
-                accent: 'italiano_standard',
-                speed: parseFloat(document.getElementById('speed').value),
-                pitch: 0,
-                volume: 0.0,
+                engine: document.getElementById('synthEngine').value,
+                language: document.getElementById('synthLanguage').value,
+                mood: document.getElementById('synthMood').value,
+                preset: document.getElementById('synthPreset').value,
+                accent: document.getElementById('synthAccent').value,
+                speed: parseFloat(document.getElementById('synthSpeed').value),
+                pitch: parseInt(document.getElementById('synthPitch').value, 10),
+                volume: parseFloat(document.getElementById('synthVolume').value),
                 format,
             };
 
@@ -1258,6 +1796,11 @@
 
                 const status = await apiRequest('GET', `/jobs/${encodeURIComponent(jobId)}`);
                 const state = String(status.status || '').toLowerCase();
+                if (state === 'queued') {
+                    setUploadActivity('Job in coda sul server, attendo esecuzione', 90);
+                } else if (state === 'running') {
+                    setUploadActivity('Server sta generando la voce AI', 90);
+                }
                 if (state === 'done') {
                     document.getElementById('synthProgressBar').style.width = '100%';
                     document.getElementById('synthProgressText').textContent = 'Completato';
@@ -1285,6 +1828,132 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        }
+
+        function getGeneratedAudioFilename() {
+            return `audio_${lastGeneratedJobId || Date.now()}.${lastGeneratedFormat || 'mp3'}`;
+        }
+
+        function getGeneratedAudioMime(format = lastGeneratedFormat) {
+            return String(format || 'mp3').toLowerCase() === 'wav' ? 'audio/wav' : 'audio/mpeg';
+        }
+
+        function hasNativeAudioShareBridge() {
+            return Boolean(window.AndroidAudioBridge && typeof window.AndroidAudioBridge.shareAudioBase64 === 'function');
+        }
+
+        function formatJobDate(ts) {
+            const num = Number(ts || 0);
+            if (!num) {
+                return 'Data non disponibile';
+            }
+            return new Date(num * 1000).toLocaleString('it-IT', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+            });
+        }
+
+        function getInitials(value, fallback = '--') {
+            const words = String(value || '').trim().split(/\s+/).filter(Boolean);
+            if (!words.length) {
+                return fallback;
+            }
+            return words.slice(0, 2).map(word => word.charAt(0).toUpperCase()).join('');
+        }
+
+        function getLanguageInitials(language) {
+            const raw = String(language || '').trim();
+            if (!raw) {
+                return '--';
+            }
+            return raw.slice(0, 2).toUpperCase();
+        }
+
+        function getJobAudioFilename(job) {
+            const id = String(job?.id || Date.now());
+            const format = String(job?.format || 'mp3').toLowerCase() === 'wav' ? 'wav' : 'mp3';
+            return `audio_${id}.${format}`;
+        }
+
+        function getJobAudioMime(job) {
+            return String(job?.format || 'mp3').toLowerCase() === 'wav' ? 'audio/wav' : 'audio/mpeg';
+        }
+
+        function blobToBase64(blob) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const dataUrl = String(reader.result || '');
+                    const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+                    if (!base64) {
+                        reject(new Error('Conversione audio non riuscita'));
+                        return;
+                    }
+                    resolve(base64);
+                };
+                reader.onerror = () => reject(reader.error || new Error('Lettura audio fallita'));
+                reader.readAsDataURL(blob);
+            });
+        }
+
+        function updateGeneratedAudioPreview(blob, jobId, format) {
+            lastGeneratedBlob = blob;
+            lastGeneratedJobId = jobId;
+            lastGeneratedFormat = format || 'mp3';
+
+            if (currentGeneratedAudioUrl) {
+                URL.revokeObjectURL(currentGeneratedAudioUrl);
+            }
+            currentGeneratedAudioUrl = URL.createObjectURL(blob);
+
+            const player = document.getElementById('generatedAudioPlayer');
+            player.src = currentGeneratedAudioUrl;
+            player.load();
+
+            document.getElementById('generatedAudioMeta').textContent = `Job ${jobId} pronto in formato ${(lastGeneratedFormat || 'mp3').toUpperCase()}.`;
+            document.getElementById('synthResultCard').style.display = 'block';
+            document.getElementById('saveGeneratedAudioButton').disabled = false;
+            document.getElementById('shareGeneratedAudioWhatsappButton').disabled = false;
+            document.getElementById('shareGeneratedAudioButton').disabled = false;
+        }
+
+        function saveGeneratedAudio() {
+            if (!lastGeneratedBlob) {
+                showMessage('synthMessage', 'Genera prima un audio da salvare', 'error');
+                return;
+            }
+
+            downloadBlob(lastGeneratedBlob, getGeneratedAudioFilename());
+            showMessage('synthMessage', 'Download avviato', 'success');
+        }
+
+        async function shareBlobFile(blob, filename, mime, targetPackage = '') {
+            if (!blob) {
+                throw new Error('Audio non disponibile');
+            }
+
+            if (hasNativeAudioShareBridge()) {
+                const base64 = await blobToBase64(blob);
+                window.AndroidAudioBridge.shareAudioBase64(base64, filename, mime, targetPackage || '');
+                return;
+            }
+
+            if (navigator.share && window.File) {
+                const file = new File([blob], filename, { type: mime });
+                if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        title: 'Audio ClonaVoce',
+                        text: 'Audio generato con ClonaVoce',
+                        files: [file],
+                    });
+                    return;
+                }
+            }
+
+            downloadBlob(blob, filename);
         }
 
         function chooseRecordingMimeType() {
@@ -1521,11 +2190,8 @@
             }
             try {
                 const out = await runSynthesis(profile, text, format);
-                lastGeneratedBlob = out.blob;
-                lastGeneratedJobId = out.jobId;
-                lastGeneratedFormat = format;
-                downloadBlob(out.blob, `audio_${out.jobId}.${format}`);
-                showMessage('synthMessage', 'Audio generato. Puoi anche usare il pulsante Condividi audio.', 'success');
+                updateGeneratedAudioPreview(out.blob, out.jobId, format);
+                showMessage('synthMessage', 'Audio generato. Ora puoi ascoltarlo, salvarlo o condividerlo.', 'success');
                 refreshJobs();
             } catch (err) {
                 showMessage('synthMessage', err.message, 'error');
@@ -1538,58 +2204,107 @@
                 return;
             }
 
-            const filename = `audio_${lastGeneratedJobId || Date.now()}.${lastGeneratedFormat || 'mp3'}`;
-            const mime = (lastGeneratedFormat || 'mp3') === 'mp3' ? 'audio/mpeg' : 'audio/wav';
+            const filename = getGeneratedAudioFilename();
+            const mime = getGeneratedAudioMime();
 
             try {
-                if (navigator.share && window.File) {
-                    const file = new File([lastGeneratedBlob], filename, { type: mime });
-                    if (!navigator.canShare || navigator.canShare({ files: [file] })) {
-                        await navigator.share({
-                            title: 'Audio ClonaVoce',
-                            text: 'Audio generato con ClonaVoce',
-                            files: [file],
-                        });
-                        showMessage('synthMessage', 'Condivisione completata', 'success');
-                        return;
-                    }
-                }
-
-                // Fallback: scarica il file se la condivisione file non e supportata.
-                downloadBlob(lastGeneratedBlob, filename);
-                showMessage('synthMessage', 'Condivisione file non supportata su questo dispositivo: file scaricato.', 'info');
+                await shareBlobFile(lastGeneratedBlob, filename, mime);
             } catch (err) {
                 showMessage('synthMessage', `Condivisione annullata/non riuscita: ${err.message}`, 'error');
             }
         }
 
+        async function shareGeneratedAudioToWhatsApp() {
+            if (!lastGeneratedBlob) {
+                showMessage('synthMessage', 'Genera prima un audio da condividere', 'error');
+                return;
+            }
+
+            const filename = getGeneratedAudioFilename();
+            const mime = getGeneratedAudioMime();
+
+            if (hasNativeAudioShareBridge()) {
+                try {
+                    await shareBlobFile(lastGeneratedBlob, filename, mime, 'com.whatsapp');
+                } catch (err) {
+                    showMessage('synthMessage', `Invio a WhatsApp non riuscito: ${err.message}`, 'error');
+                }
+                return;
+            }
+
+            await shareGeneratedAudio();
+            showMessage('synthMessage', 'Se compare il menu di condivisione, scegli WhatsApp.', 'info');
+        }
+
+        function onNativeShareResult(payload) {
+            if (!payload || payload.ok !== true) {
+                const target = payload?.targetPackage === 'com.whatsapp' ? 'WhatsApp' : 'l\'app selezionata';
+                showMessage('synthMessage', payload?.message || `Condivisione verso ${target} non riuscita`, 'error');
+                return;
+            }
+
+            if (payload.targetPackage === 'com.whatsapp') {
+                showMessage('synthMessage', 'WhatsApp aperto con l\'audio pronto da inviare', 'success');
+                return;
+            }
+
+            showMessage('synthMessage', 'Condivisione avviata', 'success');
+        }
+
         async function uploadRecordedSampleAndCompare() {
             const profile = document.getElementById('profileSelect').value.trim();
+            logInfo('UPLOAD', 'uploadRecordedSampleAndCompare chiamato', {
+                profile: profile || '(vuoto)',
+                hasBlob: Boolean(recordedBlob),
+                blobSize: recordedBlob ? recordedBlob.size : 0,
+                mimeType: recordedMimeType,
+            });
             if (!profile) {
-                showMessage('profilesContainer', 'Seleziona un profilo', 'error');
+                showMessage('profilesContainer', 'Seleziona un profilo dalla lista prima di caricare', 'error');
+                logWarn('UPLOAD', 'Bloccato: nessun profilo selezionato');
                 return;
             }
             if (!recordedBlob) {
-                showMessage('profilesContainer', 'Registra prima un sample tenendo premuto il bottone', 'error');
+                showMessage('profilesContainer', 'Nessuna registrazione presente. Prima registra un sample.', 'error');
+                logWarn('UPLOAD', 'Bloccato: recordedBlob e null');
+                return;
+            }
+            if (uploadInProgress) {
+                logWarn('UPLOAD', 'Bloccato: upload gia in corso');
+                showMessage('profilesContainer', 'Upload gia in corso, attendi qualche secondo.', 'info');
                 return;
             }
 
-            if (!capabilities.openapiChecked) {
-                await refreshBackendCapabilities();
-            }
-            if (capabilities.sampleUpload === false) {
-                // OpenAPI can be stale behind cache/CDN; do not block upload here.
-                logWarn('API', 'OpenAPI indica endpoint upload assente, ma provo comunque la richiesta reale');
-            }
+            clearExtractedTextForNewSample();
 
-            const formData = new FormData();
-            formData.append('profile', profile);
-            const ext = fileExtensionFromMime(recordedMimeType);
-            formData.append('sample', recordedBlob, `sample_${Date.now()}.${ext}`);
-            formData.append('auto_transcribe', 'true');
-            formData.append('language_hint', document.getElementById('language').value || 'it');
+            uploadInProgress = true;
+            startUploadProgress('upload');
 
             try {
+                if (!capabilities.openapiChecked) {
+                    setUploadActivity('Controllo compatibilita backend (OpenAPI)', 10);
+                    await refreshBackendCapabilities();
+                }
+                if (capabilities.sampleUpload === false) {
+                    // OpenAPI can be stale behind cache/CDN; do not block upload here.
+                    logWarn('API', 'OpenAPI indica endpoint upload assente, ma provo comunque la richiesta reale');
+                }
+
+                const formData = new FormData();
+                formData.append('profile', profile);
+                const ext = fileExtensionFromMime(recordedMimeType);
+                formData.append('sample', recordedBlob, `sample_${Date.now()}.${ext}`);
+                formData.append('auto_transcribe', 'true');
+                formData.append('language_hint', document.getElementById('language').value || 'it');
+                setUploadActivity('Invio sample audio al server e avvio trascrizione', 120);
+                logInfo('UPLOAD', 'Invio POST /profiles/add-sample-upload', {
+                    profile,
+                    ext,
+                    blobSize: recordedBlob.size,
+                    mimeType: recordedMimeType,
+                });
+                showMessage('profilesContainer', 'Upload inviato. Attendi fino a 2 minuti (transcrizione server in corso)...', 'info');
+
                 const result = await apiUpload('/profiles/add-sample-upload', formData);
                 await refreshProfiles();
                 document.getElementById('profileSelect').value = profile;
@@ -1600,10 +2315,13 @@
                 document.getElementById('transcriptionOutput').value = transcript;
                 if (!transcript) {
                     showMessage('profilesContainer', 'Sample caricato. Trascrizione non disponibile (installa motore whisper sul server).', 'info');
+                    finishUploadProgress('Sample caricato. Trascrizione non disponibile.');
                     return;
                 }
 
                 document.getElementById('textToSynthesize').value = transcript;
+                switchUploadStage('synthesis');
+                setUploadActivity('Trascrizione completata, avvio sintesi voce AI', 90);
                 const ai = await runSynthesis(profile, transcript, 'mp3');
                 if (currentAiAudioUrl) {
                     URL.revokeObjectURL(currentAiAudioUrl);
@@ -1614,6 +2332,7 @@
                 aiPlayer.load();
 
                 showMessage('profilesContainer', 'Confronto pronto: ascolta Originale e Voce AI', 'success');
+                finishUploadProgress('Confronto completato: originale e voce AI pronti.');
                 capabilities.sampleUpload = true;
                 refreshJobs();
             } catch (err) {
@@ -1627,6 +2346,12 @@
                     );
                 } else {
                     showMessage('profilesContainer', raw, 'error');
+                }
+                finishUploadProgress(`Operazione fallita: ${raw}`);
+            } finally {
+                uploadInProgress = false;
+                if (uploadStage) {
+                    finishUploadProgress();
                 }
             }
         }
@@ -1806,6 +2531,12 @@
             try {
                 const data = await apiRequest('GET', '/jobs');
                 const jobs = Array.isArray(data.jobs) ? data.jobs.slice(0, 20) : [];
+                jobMetaCache.clear();
+                jobs.forEach(job => {
+                    if (job && job.id) {
+                        jobMetaCache.set(String(job.id), job);
+                    }
+                });
                 showLoading('jobsContainer', false);
 
                 if (!jobs.length) {
@@ -1816,14 +2547,37 @@
                 const html = jobs.map(j => {
                     const status = String(j.status || '').toLowerCase();
                     const id = String(j.id || '');
+                    const displayName = String(j.display_name || j.profile || '');
+                    const preview = String(j.text_preview || '').trim() || 'Testo non disponibile';
+                    const fullText = String(j.text_full || '').trim();
+                    const when = formatJobDate(j.created_at);
+                    const compactMeta = `Voce: ${displayName} · Lingua: ${String(j.language || 'n/a').toUpperCase()}`;
+                    const player = status === 'done'
+                        ? `<audio id="jobPlayer_${escapeHtml(id)}" controls preload="none" style="width: 100%; margin-top: 10px;"></audio>`
+                        : '';
+                    const actions = status === 'done'
+                        ? `<div class="button-group" style="margin-top: 10px;">
+                                <button class="btn-secondary" onclick="loadJobPlayerById('${encodeURIComponent(id)}')">Ascolta</button>
+                                <button class="btn-secondary" onclick="downloadJobById('${encodeURIComponent(id)}')">Salva</button>
+                                <button class="btn-secondary" onclick="shareJobById('${encodeURIComponent(id)}')">Condividi</button>
+                                <button class="btn-secondary" onclick="deleteJobById('${encodeURIComponent(id)}')">Elimina</button>
+                           </div>`
+                        : `<div class="button-group" style="margin-top: 10px; margin-bottom: 0;">
+                                <span class="text-muted" style="flex:1;">In elaborazione</span>
+                                <button class="btn-secondary btn-small" onclick="deleteJobById('${encodeURIComponent(id)}')">Elimina</button>
+                           </div>`;
                     return `
                         <div class="job-item">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                                 <span class="job-status ${escapeHtml(status)}">${escapeHtml(status.toUpperCase())}</span>
                                 <span class="text-muted">ID: ${escapeHtml(id.slice(0, 8))}</span>
                             </div>
-                            <div class="text-muted">Profilo: ${escapeHtml(String(j.profile || ''))}</div>
-                            <div class="text-muted">${status === 'done' ? `<a href="#" onclick="downloadJobById('${encodeURIComponent(id)}'); return false;">Scarica</a>` : 'In elaborazione'}</div>
+                            <div class="text-muted">${escapeHtml(when)}</div>
+                            <div class="text-muted">${escapeHtml(compactMeta)}</div>
+                            <div class="text-muted">${escapeHtml(preview)}</div>
+                            <div class="text-muted" style="white-space: pre-wrap;">${escapeHtml(fullText || preview)}</div>
+                            ${player}
+                            ${actions}
                         </div>
                     `;
                 }).join('');
@@ -1841,9 +2595,121 @@
                 return;
             }
             try {
-                const blob = await apiFetchBlob(`/jobs/${encodeURIComponent(jobId)}/download`);
-                downloadBlob(blob, `audio_${jobId}.mp3`);
+                const job = jobMetaCache.get(jobId) || { id: jobId, format: 'mp3' };
+                const blob = await fetchJobAudioBlob(jobId);
+                downloadBlob(blob, getJobAudioFilename(job));
             } catch (err) {
+                showMessage('jobsContainer', err.message, 'error');
+            }
+        }
+
+        async function fetchJobAudioBlob(jobId) {
+            if (jobAudioBlobCache.has(jobId)) {
+                return jobAudioBlobCache.get(jobId);
+            }
+            const blob = await apiFetchBlob(`/jobs/${encodeURIComponent(jobId)}/download`);
+            jobAudioBlobCache.set(jobId, blob);
+            return blob;
+        }
+
+        async function loadJobPlayerById(encodedId) {
+            const jobId = decodeURIComponent(encodedId || '');
+            if (!jobId) {
+                return;
+            }
+            try {
+                const blob = await fetchJobAudioBlob(jobId);
+                if (!jobAudioUrlCache.has(jobId)) {
+                    jobAudioUrlCache.set(jobId, URL.createObjectURL(blob));
+                }
+                const player = document.getElementById(`jobPlayer_${jobId}`);
+                if (!player) {
+                    throw new Error('Player job non trovato');
+                }
+                player.src = jobAudioUrlCache.get(jobId);
+                player.load();
+                await player.play().catch(() => {});
+            } catch (err) {
+                showMessage('jobsContainer', err.message, 'error');
+            }
+        }
+
+        async function shareJobById(encodedId) {
+            const jobId = decodeURIComponent(encodedId || '');
+            if (!jobId) {
+                return;
+            }
+            try {
+                const job = jobMetaCache.get(jobId) || { id: jobId, format: 'mp3' };
+                const blob = await fetchJobAudioBlob(jobId);
+                await shareBlobFile(blob, getJobAudioFilename(job), getJobAudioMime(job));
+            } catch (err) {
+                showMessage('jobsContainer', err.message, 'error');
+            }
+        }
+
+        async function deleteJobById(encodedId) {
+            const jobId = decodeURIComponent(encodedId || '');
+            if (!jobId) {
+                return;
+            }
+            if (capabilities.canDeleteJob === false) {
+                showMessage('jobsContainer', 'Eliminazione job non supportata da questo backend.', 'error');
+                return;
+            }
+            if (!confirm(`Eliminare il job ${jobId.slice(0, 8)}?`)) {
+                return;
+            }
+            try {
+                await apiRequest('DELETE', `/jobs/${encodeURIComponent(jobId)}`);
+                if (jobAudioUrlCache.has(jobId)) {
+                    try {
+                        URL.revokeObjectURL(jobAudioUrlCache.get(jobId));
+                    } catch (_) {}
+                    jobAudioUrlCache.delete(jobId);
+                }
+                jobAudioBlobCache.delete(jobId);
+                jobMetaCache.delete(jobId);
+                await refreshJobs();
+                showMessage('jobsContainer', 'Job eliminato', 'success');
+            } catch (err) {
+                if (isDeleteUnsupportedError(err)) {
+                    capabilities.canDeleteJob = false;
+                    updateCapabilitiesUi();
+                    showMessage('jobsContainer', 'Il server remoto non supporta ancora DELETE /jobs/{job_id}.', 'error');
+                    return;
+                }
+                showMessage('jobsContainer', err.message, 'error');
+            }
+        }
+
+        async function deleteAllJobs() {
+            if (capabilities.canDeleteAllJobs === false) {
+                showMessage('jobsContainer', 'Eliminazione multipla job non supportata da questo backend.', 'error');
+                return;
+            }
+            if (!confirm('Eliminare tutti i job?')) {
+                return;
+            }
+            try {
+                await apiRequest('DELETE', '/jobs');
+                for (const [, url] of jobAudioUrlCache.entries()) {
+                    try {
+                        URL.revokeObjectURL(url);
+                    } catch (_) {}
+                }
+                jobAudioUrlCache.clear();
+                jobAudioBlobCache.clear();
+                jobMetaCache.clear();
+                await refreshJobs();
+                showMessage('jobsContainer', 'Tutti i job sono stati eliminati', 'success');
+            } catch (err) {
+                if (isDeleteUnsupportedError(err)) {
+                    capabilities.canDeleteAllJobs = false;
+                    updateCapabilitiesUi();
+                    showMessage('jobsContainer', 'Il server remoto non supporta ancora DELETE /jobs.', 'error');
+                    return;
+                }
                 showMessage('jobsContainer', err.message, 'error');
             }
         }
@@ -1878,6 +2744,7 @@
             document.getElementById('apiBaseUrl').addEventListener('change', saveConfig);
             document.getElementById('apiKey').addEventListener('change', saveConfig);
             setRecordingUiState('idle');
+            copySynthesisParamsFromSettings();
             logInfo('APP', 'DOMContentLoaded', {
                 userAgent: navigator.userAgent,
                 mediaDevices: Boolean(navigator.mediaDevices),

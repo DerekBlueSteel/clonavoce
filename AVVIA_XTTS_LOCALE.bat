@@ -64,21 +64,10 @@ echo [INFO] Python in uso: %PYTHON_CMD%
 
 echo [INFO] Controllo/installo dipendenze Python (pin versioni sicure)...
 
-rem --- torch/torchaudio: devono venire dall'indice CPU PyTorch, versione pin 2.5.1 ---
-"%PYTHON_CMD%" -c "import torch; assert torch.__version__.startswith('2.5'), 'wrong torch'" >nul 2>&1
-if errorlevel 1 (
-    echo [INFO] Installo torch 2.5.1+cpu e torchaudio 2.5.1+cpu (indice PyTorch CPU)...
-    "%PYTHON_CMD%" -m pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.5.1" "torchaudio==2.5.1" --quiet
-    if errorlevel 1 goto :deps_fail
-)
-
-rem --- transformers 4.40.2: 4.41+ rimuove BeamSearchScorer usato da TTS 0.22 ---
-"%PYTHON_CMD%" -c "import transformers as t; assert t.__version__=='4.40.2', 'wrong transformers'" >nul 2>&1
-if errorlevel 1 (
-    echo [INFO] Installo transformers==4.40.2...
-    "%PYTHON_CMD%" -m pip install "transformers==4.40.2" --quiet
-    if errorlevel 1 goto :deps_fail
-)
+call :ensure_torch_pin
+if errorlevel 1 goto :deps_fail
+call :ensure_transformers_pin
+if errorlevel 1 goto :deps_fail
 
 rem --- resto dipendenze da requirements-xtts-local.txt ---
 call :ensure_pkg fastapi fastapi
@@ -307,6 +296,26 @@ if errorlevel 1 (
 
 set "CLOUDFLARED_CMD=%TOOLS_DIR%\cloudflared-windows-amd64.exe"
 exit /b 0
+
+:ensure_torch_pin
+"%PYTHON_CMD%" -m pip show torch 2>nul | findstr /I "2.5.1" >nul 2>&1
+if not errorlevel 1 (
+    echo [OK] torch 2.5.1 gia presente.
+    exit /b 0
+)
+echo [INFO] Installo torch 2.5.1+cpu e torchaudio 2.5.1+cpu...
+"%PYTHON_CMD%" -m pip install --index-url https://download.pytorch.org/whl/cpu "torch==2.5.1" "torchaudio==2.5.1" --quiet
+exit /b %errorlevel%
+
+:ensure_transformers_pin
+"%PYTHON_CMD%" -m pip show transformers 2>nul | findstr /I "4.40.2" >nul 2>&1
+if not errorlevel 1 (
+    echo [OK] transformers 4.40.2 gia presente.
+    exit /b 0
+)
+echo [INFO] Installo transformers==4.40.2...
+"%PYTHON_CMD%" -m pip install "transformers==4.40.2" --quiet
+exit /b %errorlevel%
 
 :ensure_pkg
 set "_MODULE=%~1"

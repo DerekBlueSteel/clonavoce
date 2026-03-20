@@ -334,6 +334,7 @@ def _try_remote_xtts(payload: SynthesizeRequest, output_path: Path) -> tuple[boo
         return False, "Nessun sample disponibile per il profilo"
 
     request_payload = {
+        "profile": payload.profile,
         "text": payload.text,
         "language": payload.language,
         "mood": payload.mood,
@@ -345,9 +346,8 @@ def _try_remote_xtts(payload: SynthesizeRequest, output_path: Path) -> tuple[boo
         "format": payload.format,
         "samples": samples,
     }
-    # The remote XTTS service may not know this backend's opaque local profile IDs.
-    # When reference samples are provided, use a sample-driven payload and avoid
-    # forcing the remote side to resolve an unknown profile name.
+    # Keep sample-driven synthesis, but include profile for remote APIs that validate
+    # it as a required field even when samples are provided.
     body = json.dumps(request_payload).encode("utf-8")
     headers = {
         "Content-Type": "application/json",

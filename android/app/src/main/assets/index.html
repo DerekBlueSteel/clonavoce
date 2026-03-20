@@ -1333,6 +1333,11 @@
             return msg.includes(': not found');
         }
 
+        function isProfileNotFoundError(err) {
+            const msg = String(err?.message || '').toLowerCase();
+            return msg.includes('profilo') && msg.includes('non trovato');
+        }
+
         function updateCapabilitiesUi() {
             const deleteAllBtn = document.getElementById('deleteAllJobsBtn');
             if (deleteAllBtn) {
@@ -2359,15 +2364,16 @@
             showMessage('synthMessage', 'Condivisione avviata', 'success');
         }
 
-        async function uploadRecordedSampleAndCompare() {
-            const profile = document.getElementById('profileSelect').value.trim();
+        async function uploadRecordedSampleAndCompare(options = {}) {
+            const selectedProfile = String(options?.profileOverride || document.getElementById('profileSelect').value || '').trim();
+            const hasRetriedProfileRefresh = Boolean(options?.hasRetriedProfileRefresh);
             logInfo('UPLOAD', 'uploadRecordedSampleAndCompare chiamato', {
-                profile: profile || '(vuoto)',
+                profile: selectedProfile || '(vuoto)',
                 hasBlob: Boolean(recordedBlob),
                 blobSize: recordedBlob ? recordedBlob.size : 0,
                 mimeType: recordedMimeType,
             });
-            if (!profile) {
+            if (!selectedProfile) {
                 showMessage('profilesContainer', 'Seleziona un profilo dalla lista prima di caricare', 'error');
                 logWarn('UPLOAD', 'Bloccato: nessun profilo selezionato');
                 return;
@@ -2399,14 +2405,14 @@
                 }
 
                 const formData = new FormData();
-                formData.append('profile', profile);
+                formData.append('profile', selectedProfile);
                 const ext = fileExtensionFromMime(recordedMimeType);
                 formData.append('sample', recordedBlob, `sample_${Date.now()}.${ext}`);
                 formData.append('auto_transcribe', 'true');
                 formData.append('language_hint', document.getElementById('language').value || 'it');
                 setUploadActivity('Invio sample audio al server e avvio trascrizione', 120);
                 logInfo('UPLOAD', 'Invio POST /profiles/add-sample-upload', {
-                    profile,
+                    profile: selectedProfile,
                     ext,
                     blobSize: recordedBlob.size,
                     mimeType: recordedMimeType,
@@ -2415,8 +2421,8 @@
 
                 const result = await apiUpload('/profiles/add-sample-upload', formData);
                 await refreshProfiles();
-                document.getElementById('profileSelect').value = profile;
-                document.getElementById('synthProfile').value = profile;
+                document.getElementById('profileSelect').value = selectedProfile;
+                document.getElementById('synthProfile').value = selectedProfile;
                 onProfileChanged();
 
                 const transcript = String(result.transcription_text || '').trim();
@@ -2430,7 +2436,7 @@
                 document.getElementById('textToSynthesize').value = transcript;
                 switchUploadStage('synthesis');
                 setUploadActivity('Trascrizione completata, avvio sintesi voce AI', 90);
-                const ai = await runSynthesis(profile, transcript, 'mp3');
+                const ai = await runSynthesis(selectedProfile, transcript, 'mp3');
                 if (currentAiAudioUrl) {
                     URL.revokeObjectURL(currentAiAudioUrl);
                 }
@@ -2450,6 +2456,25 @@
                     showMessage(
                         'profilesContainer',
                         'Upload sample non disponibile su questo backend remoto: endpoint /profiles/add-sample-upload assente. Va aggiornato il servizio Render.',
+                        'error'
+                    );
+                } else if (isProfileNotFoundError(err)) {
+                    await refreshProfiles();
+                    const refreshedProfile = String(document.getElementById('profileSelect').value || '').trim()
+                        || String((currentProfiles?.[0] && currentProfiles[0].profile) || '').trim();
+                    if (!hasRetriedProfileRefresh && refreshedProfile && refreshedProfile !== selectedProfile) {
+                        document.getElementById('profileSelect').value = refreshedProfile;
+                        document.getElementById('synthProfile').value = refreshedProfile;
+                        onProfileChanged();
+                        showMessage('profilesContainer', 'Profilo aggiornato automaticamente. Riprovo upload e confronto.', 'info');
+                        return await uploadRecordedSampleAndCompare({
+                            profileOverride: refreshedProfile,
+                            hasRetriedProfileRefresh: true,
+                        });
+                    }
+                    showMessage(
+                        'profilesContainer',
+                        'Il profilo selezionato non esiste piu sul server. Lista aggiornata: seleziona un profilo valido e riprova.',
                         'error'
                     );
                 } else {

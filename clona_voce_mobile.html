@@ -369,6 +369,28 @@
             color: #999;
             font-size: 12px;
         }
+        .lang-autocomplete-wrapper {
+            position: relative;
+        }
+        .lang-autocomplete-wrapper input {
+            width: 100%; box-sizing: border-box;
+        }
+        .lang-autocomplete-dropdown {
+            position: absolute; z-index: 999; left: 0; right: 0;
+            background: #fff; border: 1px solid #ddd; border-radius: 6px;
+            max-height: 200px; overflow-y: auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,.12);
+            display: none;
+        }
+        .lang-autocomplete-dropdown.open { display: block; }
+        .lang-ac-item {
+            padding: 10px 12px; cursor: pointer; font-size: 14px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .lang-ac-item:last-child { border-bottom: none; }
+        .lang-ac-item:hover, .lang-ac-item.selected { background: #667eea22; }
+        .translate-btn-row { display: flex; gap: 8px; margin-top: 6px; align-items: center; }
+        .translate-status { font-size: 12px; color: #888; flex: 1; }
     </style>
 </head>
 <body>
@@ -415,12 +437,12 @@
                 </div>
                 <div class="form-group">
                     <label>Lingua</label>
-                    <select id="language">
-                        <option value="it">Italiano</option>
-                        <option value="en">Inglese</option>
-                        <option value="es">Spagnolo</option>
-                        <option value="fr">Francese</option>
-                    </select>
+                    <div class="lang-autocomplete-wrapper" id="langWrap_language">
+                        <input type="text" id="language_label" placeholder="es. Italiano" autocomplete="off"
+                            oninput="langAcFilter('language')" onfocus="langAcFilter('language')" onblur="langAcBlur('language')" value="Italiano">
+                        <input type="hidden" id="language" value="it">
+                        <div class="lang-autocomplete-dropdown" id="langDrop_language"></div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Umore</label>
@@ -617,12 +639,16 @@
                 </div>
                 <div class="form-group">
                     <label>Lingua (job)</label>
-                    <select id="synthLanguage">
-                        <option value="it">Italiano</option>
-                        <option value="en">Inglese</option>
-                        <option value="es">Spagnolo</option>
-                        <option value="fr">Francese</option>
-                    </select>
+                    <div class="lang-autocomplete-wrapper" id="langWrap_synthLanguage">
+                        <input type="text" id="synthLanguage_label" placeholder="es. Italiano" autocomplete="off"
+                            oninput="langAcFilter('synthLanguage')" onfocus="langAcFilter('synthLanguage')" onblur="langAcBlur('synthLanguage')" value="Italiano">
+                        <input type="hidden" id="synthLanguage" value="it">
+                        <div class="lang-autocomplete-dropdown" id="langDrop_synthLanguage"></div>
+                    </div>
+                    <div class="translate-btn-row">
+                        <button class="btn-secondary btn-small" onclick="translateSynthText()">Traduci testo</button>
+                        <span class="translate-status" id="translateStatus"></span>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Umore (job)</label>
@@ -1324,7 +1350,7 @@
 
         function copySynthesisParamsFromSettings() {
             document.getElementById('synthEngine').value = document.getElementById('engine').value;
-            document.getElementById('synthLanguage').value = document.getElementById('language').value;
+            langAcSetValue('synthLanguage', document.getElementById('language').value);
             document.getElementById('synthMood').value = document.getElementById('mood').value;
             document.getElementById('synthPreset').value = document.getElementById('preset').value;
             document.getElementById('synthAccent').value = document.getElementById('accent').value;
@@ -1339,7 +1365,7 @@
         function applyProfileDefaultsToSynthesis(profile) {
             const d = getProfileDefaults(profile);
             document.getElementById('synthEngine').value = d.engine;
-            document.getElementById('synthLanguage').value = d.language;
+            langAcSetValue('synthLanguage', d.language);
             document.getElementById('synthMood').value = d.mood;
             document.getElementById('synthPreset').value = d.preset;
             document.getElementById('synthAccent').value = d.accent;
@@ -1363,12 +1389,15 @@
                         <option value="pyttsx3" ${defaults.engine === 'pyttsx3' ? 'selected' : ''}>pyttsx3</option>
                         <option value="xtts" ${defaults.engine === 'xtts' ? 'selected' : ''}>xtts</option>
                     </select></div>
-                    <div class="form-group"><label>Lingua</label><select id="def_language_${pid}">
-                        <option value="it" ${defaults.language === 'it' ? 'selected' : ''}>Italiano</option>
-                        <option value="en" ${defaults.language === 'en' ? 'selected' : ''}>Inglese</option>
-                        <option value="es" ${defaults.language === 'es' ? 'selected' : ''}>Spagnolo</option>
-                        <option value="fr" ${defaults.language === 'fr' ? 'selected' : ''}>Francese</option>
-                    </select></div>
+                    <div class="form-group"><label>Lingua</label>
+                        <div class="lang-autocomplete-wrapper" id="langWrap_def_language_${pid}">
+                            <input type="text" id="def_language_${pid}_label" placeholder="es. Italiano" autocomplete="off"
+                                oninput="langAcFilter('def_language_${pid}')" onfocus="langAcFilter('def_language_${pid}')" onblur="langAcBlur('def_language_${pid}')"
+                                value="${WORLD_LANGUAGES_LABEL[defaults.language] || defaults.language}">
+                            <input type="hidden" id="def_language_${pid}" value="${defaults.language}">
+                            <div class="lang-autocomplete-dropdown" id="langDrop_def_language_${pid}"></div>
+                        </div>
+                    </div>
                     <div class="form-group"><label>Umore</label><select id="def_mood_${pid}">
                         <option value="neutro" ${defaults.mood === 'neutro' ? 'selected' : ''}>Neutro</option>
                         <option value="felice" ${defaults.mood === 'felice' ? 'selected' : ''}>Felice</option>
@@ -1777,6 +1806,8 @@
                 pitch: parseInt(document.getElementById('synthPitch').value, 10),
                 volume: parseFloat(document.getElementById('synthVolume').value),
                 format,
+                original_text: lastTranslationOriginal || '',
+                original_language: lastTranslationOriginalLang || '',
             };
 
             document.getElementById('synthProgress').style.display = 'block';
@@ -2554,7 +2585,19 @@
                     const preview = String(j.text_preview || '').trim() || 'Testo non disponibile';
                     const fullText = String(j.text_full || '').trim();
                     const when = formatJobDate(j.created_at);
-                    const compactMeta = `Voce: ${displayName} · Lingua: ${String(j.language || 'n/a').toUpperCase()}`;
+                    const langLabel = WORLD_LANGUAGES_LABEL[j.language] || String(j.language || 'n/a').toUpperCase();
+                    const compactMeta = `Voce: ${displayName} · Lingua: ${langLabel}`;
+                    const origText = String(j.original_text || '').trim();
+                    const origLang = String(j.original_language || '').trim();
+                    const origLangLabel = origLang ? (WORLD_LANGUAGES_LABEL[origLang] || origLang.toUpperCase()) : '';
+                    const translationBlock = origText
+                        ? `<div class="text-muted" style="margin-top:6px; border-top:1px solid #eee; padding-top:6px;">
+                              <strong>Originale (${escapeHtml(origLangLabel)}):</strong><br>${escapeHtml(origText)}
+                           </div>
+                           <div class="text-muted" style="margin-top:4px;">
+                              <strong>Tradotto in ${escapeHtml(langLabel)}:</strong><br>${escapeHtml(fullText || preview)}
+                           </div>`
+                        : `<div class="text-muted" style="white-space: pre-wrap;">${escapeHtml(fullText || preview)}</div>`;
                     const player = status === 'done'
                         ? `<audio id="jobPlayer_${escapeHtml(id)}" controls preload="none" style="width: 100%; margin-top: 10px;"></audio>`
                         : '';
@@ -2578,7 +2621,7 @@
                             <div class="text-muted">${escapeHtml(when)}</div>
                             <div class="text-muted">${escapeHtml(compactMeta)}</div>
                             <div class="text-muted">${escapeHtml(preview)}</div>
-                            <div class="text-muted" style="white-space: pre-wrap;">${escapeHtml(fullText || preview)}</div>
+                            ${translationBlock}
                             ${player}
                             ${actions}
                         </div>
@@ -2714,6 +2757,119 @@
                     return;
                 }
                 showMessage('jobsContainer', err.message, 'error');
+            }
+        }
+
+        // ──────────────────────────────────────────────────────────────────
+        // WORLD LANGUAGES – IT, EN, ES, FR first; rest alphabetical by label
+        // ──────────────────────────────────────────────────────────────────
+        const WORLD_LANGUAGES = [
+            {v:'it',l:'Italiano'},{v:'en',l:'Inglese'},{v:'es',l:'Spagnolo'},{v:'fr',l:'Francese'},
+            {v:'af',l:'Afrikaans'},{v:'sq',l:'Albanese'},{v:'am',l:'Amarico'},{v:'ar',l:'Arabo'},
+            {v:'hy',l:'Armeno'},{v:'az',l:'Azerbaigiano'},{v:'eu',l:'Basco'},{v:'be',l:'Bielorusso'},
+            {v:'bn',l:'Bengalese'},{v:'bs',l:'Bosniaco'},{v:'bg',l:'Bulgaro'},{v:'my',l:'Birmano'},
+            {v:'ca',l:'Catalano'},{v:'ceb',l:'Cebuano'},{v:'cs',l:'Ceco'},{v:'ny',l:'Chichewa'},
+            {v:'zh-cn',l:'Cinese (semplificato)'},{v:'zh-tw',l:'Cinese (tradizionale)'},
+            {v:'ko',l:'Coreano'},{v:'hr',l:'Croato'},{v:'da',l:'Danese'},{v:'ht',l:'Creolo haitiano'},
+            {v:'nl',l:'Olandese'},{v:'eo',l:'Esperanto'},{v:'et',l:'Estone'},{v:'tl',l:'Filipino'},
+            {v:'fi',l:'Finlandese'},{v:'fy',l:'Frisone'},{v:'gl',l:'Galiziano'},{v:'ka',l:'Georgiano'},
+            {v:'de',l:'Tedesco'},{v:'el',l:'Greco'},{v:'gu',l:'Gujarati'},{v:'ha',l:'Hausa'},
+            {v:'haw',l:'Hawaiano'},{v:'iw',l:'Ebraico'},{v:'hi',l:'Hindi'},{v:'hmn',l:'Hmong'},
+            {v:'hu',l:'Ungherese'},{v:'is',l:'Islandese'},{v:'ig',l:'Igbo'},{v:'id',l:'Indonesiano'},
+            {v:'ga',l:'Irlandese'},{v:'ja',l:'Giapponese'},{v:'jw',l:'Giavanese'},{v:'kn',l:'Kannada'},
+            {v:'kk',l:'Kazako'},{v:'km',l:'Khmer'},{v:'ku',l:'Curdo'},{v:'ky',l:'Kirghiso'},
+            {v:'lo',l:'Lao'},{v:'la',l:'Latino'},{v:'lv',l:'Lettone'},{v:'lt',l:'Lituano'},
+            {v:'lb',l:'Lussemburghese'},{v:'mk',l:'Macedone'},{v:'mg',l:'Malgascio'},{v:'ms',l:'Malese'},
+            {v:'ml',l:'Malayalam'},{v:'mt',l:'Maltese'},{v:'mi',l:'Maori'},{v:'mr',l:'Marathi'},
+            {v:'mn',l:'Mongolo'},{v:'ne',l:'Nepalese'},{v:'no',l:'Norvegese'},{v:'ps',l:'Pashtu'},
+            {v:'fa',l:'Persiano'},{v:'pl',l:'Polacco'},{v:'pt',l:'Portoghese'},{v:'pa',l:'Punjabi'},
+            {v:'ro',l:'Rumeno'},{v:'ru',l:'Russo'},{v:'sm',l:'Samoano'},{v:'gd',l:'Gaelico scozzese'},
+            {v:'sr',l:'Serbo'},{v:'st',l:'Sesotho'},{v:'sn',l:'Shona'},{v:'sd',l:'Sindhi'},
+            {v:'si',l:'Singalese'},{v:'sk',l:'Slovacco'},{v:'sl',l:'Sloveno'},{v:'so',l:'Somalo'},
+            {v:'su',l:'Sundanese'},{v:'sw',l:'Swahili'},{v:'sv',l:'Svedese'},{v:'tg',l:'Tagico'},
+            {v:'ta',l:'Tamil'},{v:'te',l:'Telugu'},{v:'th',l:'Tailandese'},{v:'tr',l:'Turco'},
+            {v:'uk',l:'Ucraino'},{v:'ur',l:'Urdu'},{v:'uz',l:'Uzbeko'},{v:'vi',l:'Vietnamita'},
+            {v:'cy',l:'Gallese'},{v:'xh',l:'Xhosa'},{v:'yi',l:'Yiddish'},{v:'yo',l:'Yoruba'},{v:'zu',l:'Zulu'},
+        ];
+        const WORLD_LANGUAGES_LABEL = Object.fromEntries(WORLD_LANGUAGES.map(({v,l}) => [v, l]));
+
+        let lastTranslationOriginal = '';
+        let lastTranslationOriginalLang = '';
+
+        function langAcSetValue(fieldId, code) {
+            const hidden = document.getElementById(fieldId);
+            const label = document.getElementById(fieldId + '_label');
+            if (!hidden || !label) return;
+            hidden.value = code;
+            label.value = WORLD_LANGUAGES_LABEL[code] || code;
+        }
+
+        function langAcFilter(fieldId) {
+            const label = document.getElementById(fieldId + '_label');
+            const drop  = document.getElementById('langDrop_' + fieldId);
+            if (!label || !drop) return;
+            const q = label.value.toLowerCase().trim();
+            const results = q
+                ? WORLD_LANGUAGES.filter(({v,l}) => l.toLowerCase().includes(q) || v.toLowerCase().includes(q))
+                : WORLD_LANGUAGES;
+            drop.innerHTML = results.slice(0, 80).map(({v,l}) =>
+                `<div class="lang-ac-item" data-val="${escapeHtml(v)}" data-label="${escapeHtml(l)}"
+                      onmousedown="langAcPick('${fieldId}','${escapeHtml(v)}','${escapeHtml(l)}')">${escapeHtml(l)} <span style="color:#aaa;font-size:11px;">(${escapeHtml(v)})</span></div>`
+            ).join('');
+            drop.classList.add('open');
+        }
+
+        function langAcPick(fieldId, code, label) {
+            const hidden = document.getElementById(fieldId);
+            const inp    = document.getElementById(fieldId + '_label');
+            const drop   = document.getElementById('langDrop_' + fieldId);
+            if (hidden) hidden.value = code;
+            if (inp)    inp.value = label;
+            if (drop)   drop.classList.remove('open');
+            if (fieldId === 'synthLanguage') {
+                lastTranslationOriginal = '';
+                lastTranslationOriginalLang = '';
+                document.getElementById('translateStatus').textContent = '';
+            }
+        }
+
+        function langAcBlur(fieldId) {
+            setTimeout(() => {
+                const drop = document.getElementById('langDrop_' + fieldId);
+                if (drop) drop.classList.remove('open');
+            }, 180);
+        }
+
+        async function translateSynthText() {
+            const textArea = document.getElementById('textToSynthesize');
+            const text = textArea ? textArea.value.trim() : '';
+            if (!text) {
+                document.getElementById('translateStatus').textContent = 'Nessun testo da tradurre.';
+                return;
+            }
+            const srcLang = document.getElementById('language').value || 'it';
+            const tgtLang = document.getElementById('synthLanguage').value || 'it';
+            if (srcLang === tgtLang) {
+                document.getElementById('translateStatus').textContent = 'Sorgente e destinazione uguali, nessuna traduzione.';
+                return;
+            }
+            document.getElementById('translateStatus').textContent = 'Traduzione in corso...';
+            try {
+                const res = await apiRequest('POST', '/translate', {
+                    text,
+                    source_language: srcLang,
+                    target_language: tgtLang,
+                });
+                const translated = String(res.translated || '').trim();
+                if (!translated) throw new Error('Traduzione vuota');
+                lastTranslationOriginal = text;
+                lastTranslationOriginalLang = srcLang;
+                textArea.value = translated;
+                const srcLabel = WORLD_LANGUAGES_LABEL[srcLang] || srcLang;
+                const tgtLabel = WORLD_LANGUAGES_LABEL[tgtLang] || tgtLang;
+                document.getElementById('translateStatus').textContent = `✓ Tradotto da ${srcLabel} a ${tgtLabel}`;
+            } catch (err) {
+                document.getElementById('translateStatus').textContent = `Errore: ${err.message}`;
             }
         }
 

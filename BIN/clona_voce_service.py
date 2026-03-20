@@ -58,6 +58,8 @@ class JobState:
     text_preview: str = ""
     text_full: str = ""
     language: str = ""
+    original_text: str = ""
+    original_language: str = ""
     audio_format: str = "mp3"
     output_path: str = ""
     started_at: float | None = None
@@ -81,6 +83,8 @@ class SynthesizeRequest(BaseModel):
     pitch: int = Field(default=0, ge=-24, le=24)
     volume: float = Field(default=0.0, ge=-24.0, le=24.0)
     format: str = Field(default="mp3", pattern="^(mp3|wav)$")
+    original_text: str = Field(default="")
+    original_language: str = Field(default="")
 
 
 class InitProfileRequest(BaseModel):
@@ -174,6 +178,8 @@ def _job_to_dict(state: JobState) -> dict[str, Any]:
         "text_preview": state.text_preview,
         "text_full": state.text_full,
         "language": state.language,
+        "original_text": state.original_text,
+        "original_language": state.original_language,
         "format": state.audio_format,
         "created_at": state.created_at,
         "started_at": state.started_at,
@@ -1033,6 +1039,8 @@ def synthesize(payload: SynthesizeRequest) -> dict[str, Any]:
         text_preview=_preview_text(payload.text),
         text_full=str(payload.text or "").strip(),
         language=str(payload.language or "").strip(),
+        original_text=str(payload.original_text or "").strip(),
+        original_language=str(payload.original_language or "").strip(),
         audio_format=str(payload.format or "mp3").strip().lower() or "mp3",
     )
     with jobs_lock:
@@ -1124,3 +1132,37 @@ def delete_all_jobs() -> dict[str, Any]:
         "jobs_deleted": len(states),
         "output_files_deleted": deleted_files,
     }
+
+
+class TranslateRequest(BaseModel):
+    text: str = Field(..., min_length=1)
+    source_language: str = Field(default="auto")
+    target_language: str = Field(..., min_length=1)
+
+
+@app.post("/translate")
+def translate_text(payload: TranslateRequest) -> dict[str, Any]:
+    """Translate text from source_language to target_language using deep_translator."""
+    src = str(payload.source_language or "auto").strip().lower() or "auto"
+    tgt = str(payload.target_language or "").strip().lower()
+    text = str(payload.text or "").strip()
+    if not tgt:
+        raise HTTPException(status_code=400, detail="target_language obbligatorio")
+    if not text:
+        raise HTTPException(status_code=400, detail="text obbligatorio")
+    try:
+        from deep_translator import GoogleTranslator  # type: ignore
+        translator = GoogleTranslator(source=src, target=tgt)
+        translated = translator.translate(text)
+        if not translated:
+            raise HTTPException(status_code=502, detail="Traduzione vuota dal motore")
+        return {
+            "translated": translated,
+            "source_language": src,
+            "target_language": tgt,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning(f"translate_text failed: {exc}")
+        raise HTTPException(status_code=502, detail=f"Traduzione non disponibile: {exc}")

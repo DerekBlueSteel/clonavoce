@@ -11,6 +11,9 @@ import sys
 import tempfile
 import threading
 import time
+import base64
+import urllib.request
+import urllib.error
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -38,6 +41,9 @@ SCRIPT_PATH = BASE_DIR / "clona_voce_personale.py"
 MAX_WORKERS = int(os.getenv("CLONAVOCE_MAX_WORKERS", "2"))
 JOB_TTL_SECONDS = int(os.getenv("CLONAVOCE_JOB_TTL_SECONDS", "86400"))
 API_KEY = os.getenv("CLONAVOCE_API_KEY", "").strip()
+REMOTE_XTTS_URL = os.getenv("CLONAVOCE_REMOTE_XTTS_URL", "").strip()
+REMOTE_XTTS_KEY = os.getenv("CLONAVOCE_REMOTE_XTTS_KEY", "").strip()
+REMOTE_XTTS_TIMEOUT = int(os.getenv("CLONAVOCE_REMOTE_XTTS_TIMEOUT_SECONDS", "180"))
 
 API_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -142,6 +148,91 @@ def _job_to_dict(state: JobState) -> dict[str, Any]:
         "stderr_tail": state.stderr_tail,
         "error": state.error,
     }
+
+
+def _validate_profile_token(profile: str, confirmation_token: str) -> None:
+    if not core:
+        raise RuntimeError("core module non disponibile")
+    data = core.load_profile(profile)
+    consent = data.get("consent", {}) if isinstance(data, dict) else {}
+    if not consent.get("speaker_confirmed"):
+        raise PermissionError("Il profilo non ha consenso confermato")
+    expected = str(consent.get("confirmation_token") or "").strip()
+    if not expected or str(confirmation_token or "").strip() != expected:
+        raise PermissionError("Token di conferma non valido per questo profilo")
+
+
+def _collect_profile_samples_for_remote(profile: str, max_samples: int = 3) -> list[dict[str, str]]:
+    if not core:
+        return []
+    data = core.load_profile(profile)
+    profile_path = core.profile_dir(profile)
+    references = core.find_reference_samples(data, profile_path)
+    selected = references[:max_samples]
+    payload_items: list[dict[str, str]] = []
+    for item in selected:
+        raw = item.read_bytes()
+        payload_items.append(
+            {
+                "filename": item.name,
+                "content_b64": base64.b64encode(raw).decode("ascii"),
+            }
+        )
+    return payload_items
+
+
+def _try_remote_xtts(payload: SynthesizeRequest, output_path: Path) -> tuple[bool, str]:
+    if not REMOTE_XTTS_URL:
+        return False, "REMOTE_XTTS_URL non configurato"
+
+    samples = _collect_profile_samples_for_remote(payload.profile)
+    if not samples:
+        return False, "Nessun sample disponibile per il profilo"
+
+    request_payload = {
+        "profile": payload.profile,
+        "text": payload.text,
+        "language": payload.language,
+        "mood": payload.mood,
+        "preset": payload.preset,
+        "accent": payload.accent,
+        "speed": payload.speed,
+        "pitch": payload.pitch,
+        "volume": payload.volume,
+        "format": payload.format,
+        "samples": samples,
+    }
+    body = json.dumps(request_payload).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    if REMOTE_XTTS_KEY:
+        headers["X-Remote-Key"] = REMOTE_XTTS_KEY
+
+    req = urllib.request.Request(REMOTE_XTTS_URL, data=body, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=max(10, REMOTE_XTTS_TIMEOUT)) as resp:
+            resp_body = resp.read().decode("utf-8", errors="replace")
+            payload_json = json.loads(resp_body)
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        return False, f"HTTP {exc.code}: {detail[:800]}"
+    except Exception as exc:
+        return False, str(exc)
+
+    audio_b64 = str(payload_json.get("audio_b64") or "").strip()
+    if not audio_b64:
+        return False, "Risposta remota senza audio_b64"
+
+    try:
+        raw = base64.b64decode(audio_b64)
+    except Exception as exc:
+        return False, f"Base64 non valido: {exc}"
+    output_path.write_bytes(raw)
+    if not output_path.exists() or output_path.stat().st_size == 0:
+        return False, "Output remoto vuoto"
+    return True, "ok"
 
 
 def _prepare_uploaded_sample_for_core(source_path: Path) -> Path:
@@ -259,6 +350,25 @@ def _run_synthesize_job(job_id: str, payload: SynthesizeRequest) -> None:
     output_ext = payload.format.lower()
     output_path = API_OUTPUT_DIR / f"{safe_profile}_{job_id}.{output_ext}"
 
+    try_remote = bool(REMOTE_XTTS_URL) and payload.engine in {"auto", "xtts"}
+    if try_remote:
+        try:
+            _validate_profile_token(payload.profile, payload.confirmation_token)
+            ok, msg = _try_remote_xtts(payload, output_path)
+            if ok:
+                with jobs_lock:
+                    state = jobs[job_id]
+                    state.return_code = 0
+                    state.stdout_tail = ""
+                    state.stderr_tail = "[remote-xtts] sintesi completata via endpoint remoto"
+                    state.finished_at = time.time()
+                    state.status = "done"
+                    state.output_path = str(output_path)
+                return
+            logger.warning("Remote XTTS fallita, fallback locale: %s", msg)
+        except Exception as exc:
+            logger.warning("Remote XTTS non disponibile, fallback locale: %s", exc)
+
     cmd = [
         sys.executable,
         str(SCRIPT_PATH),
@@ -300,9 +410,12 @@ def _run_synthesize_job(job_id: str, payload: SynthesizeRequest) -> None:
             check=False,
         )
 
-        # On lightweight deployments XTTS deps may be absent; retry once with pyttsx3 fallback.
+        # Optional fallback: only enabled explicitly to avoid surprising low-quality voice output.
+        allow_low_quality_fallback = os.getenv("CLONAVOCE_ALLOW_LOW_QUALITY_FALLBACK", "0").strip() == "1"
         combined_err = f"{completed.stdout}\n{completed.stderr}".lower()
         needs_tts_fallback = (
+            allow_low_quality_fallback
+            and
             completed.returncode != 0
             and "no module named 'tts'" in combined_err
             and payload.engine in {"auto", "xtts"}
@@ -338,6 +451,10 @@ def _run_synthesize_job(job_id: str, payload: SynthesizeRequest) -> None:
                 state.output_path = str(output_path)
             else:
                 state.status = "failed"
+                low = f"{completed.stdout}\n{completed.stderr}".lower()
+                if "no module named 'tts'" in low:
+                    state.error = "Sintesi XTTS non disponibile sul server (modulo TTS mancante). Qualita alta non disponibile finche XTTS non viene installato."
+                    return
                 stderr_snippet = _tail_text(completed.stderr, 800).strip()
                 state.error = f"Sintesi fallita (rc={completed.returncode}){': ' + stderr_snippet if stderr_snippet else ''}"
     except Exception as exc:

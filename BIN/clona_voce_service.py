@@ -424,6 +424,8 @@ def _choose_uploaded_suffix(filename: str, content_type: str) -> str:
     ctype = str(content_type or "").lower().strip()
     if "mp4" in ctype or "m4a" in ctype:
         return ".m4a"
+    if "opus" in ctype:
+        return ".opus"
     if "ogg" in ctype:
         return ".ogg"
     if "webm" in ctype:
@@ -432,7 +434,8 @@ def _choose_uploaded_suffix(filename: str, content_type: str) -> str:
         return ".wav"
     if "mpeg" in ctype or "mp3" in ctype:
         return ".mp3"
-    return ".wav"
+    # Default to a compressed container to force ffmpeg probing/conversion.
+    return ".webm"
 
 
 def _transcribe_audio_file(audio_path: Path, language_hint: str = "") -> tuple[str, str, list[str]]:

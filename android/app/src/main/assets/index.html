@@ -203,8 +203,61 @@
             background: white;
             border: 1px solid #ddd;
             border-radius: 8px;
-            padding: 12px;
             margin-bottom: 12px;
+            overflow: hidden;
+        }
+
+        .profile-card.selected {
+            border-color: #667eea;
+            box-shadow: 0 0 0 1px rgba(102, 126, 234, 0.18);
+        }
+
+        .profile-card-summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        .profile-card-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .profile-card-summary-text {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .profile-card-summary-side {
+            flex-shrink: 0;
+            font-size: 12px;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .profile-card-content {
+            padding: 0 12px 12px;
+            border-top: 1px solid #eee;
+        }
+
+        .profile-card-meta {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+
+        .profile-chip {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: #eef1ff;
+            color: #4a56b3;
+            font-size: 11px;
+            font-weight: 600;
         }
         
         .profile-card-title {
@@ -400,15 +453,15 @@
     </div>
     
     <div class="tabs-navigation">
-        <button class="tab-button active" data-tab="settings">⚙ Impostazioni</button>
-        <button class="tab-button" data-tab="profiles">👤 Profili</button>
-        <button class="tab-button" data-tab="synthesize">🎤 Sintesi</button>
+        <button class="tab-button active" data-tab="synthesize">🎤 Sintesi</button>
         <button class="tab-button" data-tab="jobs">📋 Job</button>
+        <button class="tab-button" data-tab="profiles">👤 Profili</button>
+        <button class="tab-button" data-tab="settings">⚙ Impostazioni</button>
     </div>
     
     <div class="main-content">
         <!-- SETTINGS TAB -->
-        <div class="tab-content active" id="settings">
+        <div class="tab-content" id="settings">
             <div class="settings-group">
                 <div class="settings-group-title">Connessione API</div>
                 <div class="form-group">
@@ -518,30 +571,7 @@
         
         <!-- PROFILES TAB -->
         <div class="tab-content" id="profiles">
-            <div class="form-group">
-                <label>Seleziona profilo</label>
-                <select id="profileSelect" onchange="onProfileChanged()">
-                    <option value="">-- Carica profili --</option>
-                </select>
-            </div>
-            <button class="btn-primary" style="width: 100%; margin-bottom: 16px;" onclick="refreshProfiles()">Aggiorna profili</button>
-
-            <div class="settings-group">
-                <div class="settings-group-title">Profilo selezionato</div>
-                <div class="form-group">
-                    <label>Token profilo (salvato su questo dispositivo)</label>
-                    <input type="password" id="profileToken" placeholder="Incolla token profilo">
-                </div>
-                <div class="button-group">
-                    <button class="btn-secondary" onclick="saveCurrentProfileToken()">Salva token</button>
-                    <button class="btn-secondary" onclick="renameSelectedProfile()">Rinomina</button>
-                </div>
-            </div>
-
-            <div id="profilesContainer"></div>
-
-            <div class="divider"></div>
-
+            <input type="hidden" id="profileToken">
             <div class="settings-group">
                 <div class="settings-group-title">Crea nuovo profilo</div>
                 <div class="form-group">
@@ -597,10 +627,29 @@
                 <button class="btn-secondary" style="width: 100%;" onclick="triggerSamplePicker()">Seleziona e carica sample audio</button>
                 <div class="text-muted" style="margin-top: 8px;">Scegli un file audio dal dispositivo per aggiungerlo al profilo selezionato.</div>
             </div>
+
+            <div class="divider"></div>
+
+            <div class="settings-group">
+                <div class="settings-group-title">Profili salvati</div>
+                <div class="text-muted" style="margin-bottom: 12px;">I token vengono salvati in automatico sul dispositivo quando crei un profilo.</div>
+                <div class="form-group">
+                    <label>Seleziona profilo</label>
+                    <select id="profileSelect" onchange="onProfileChanged()">
+                        <option value="">-- Carica profili --</option>
+                    </select>
+                </div>
+                <div class="button-group" style="margin-bottom: 0;">
+                    <button class="btn-primary" onclick="refreshProfiles()">Aggiorna profili</button>
+                    <button class="btn-secondary" onclick="renameSelectedProfile()">Rinomina selezionato</button>
+                </div>
+            </div>
+
+            <div id="profilesContainer"></div>
         </div>
 
         <!-- SYNTHESIZE TAB -->
-        <div class="tab-content" id="synthesize">
+        <div class="tab-content active" id="synthesize">
             <div class="form-group">
                 <label>Profilo</label>
                 <select id="synthProfile" onchange="syncProfileFromSynthesis()">
@@ -613,6 +662,20 @@
             <div class="form-group">
                 <label>Testo da sintetizzare</label>
                 <textarea id="textToSynthesize" placeholder="Inserisci il testo che vuoi sintetizzare..."></textarea>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="synthesizeAudio()">Genera audio</button>
+                <button class="btn-secondary" id="saveGeneratedAudioButton" onclick="saveGeneratedAudio()" disabled>Salva audio</button>
+                <button class="btn-secondary" id="shareGeneratedAudioWhatsappButton" onclick="shareGeneratedAudioToWhatsApp()" disabled>WhatsApp</button>
+                <button class="btn-secondary" id="shareGeneratedAudioButton" onclick="shareGeneratedAudio()" disabled>Condividi audio</button>
+            </div>
+
+            <div id="synthProgress" style="display: none; margin-bottom: 16px;">
+                <div class="progress-bar">
+                    <div class="progress-bar-fill" id="synthProgressBar" style="width: 0%;"></div>
+                </div>
+                <div class="text-muted" id="synthProgressText">In elaborazione...</div>
             </div>
 
             <div class="form-group">
@@ -699,20 +762,6 @@
                 </div>
             </div>
 
-            <div id="synthProgress" style="display: none;">
-                <div class="progress-bar">
-                    <div class="progress-bar-fill" id="synthProgressBar" style="width: 0%;"></div>
-                </div>
-                <div class="text-muted" id="synthProgressText">In elaborazione...</div>
-            </div>
-
-            <div class="button-group">
-                <button class="btn-primary" onclick="synthesizeAudio()">Genera audio</button>
-                <button class="btn-secondary" id="saveGeneratedAudioButton" onclick="saveGeneratedAudio()" disabled>Salva audio</button>
-                <button class="btn-secondary" id="shareGeneratedAudioWhatsappButton" onclick="shareGeneratedAudioToWhatsApp()" disabled>WhatsApp</button>
-                <button class="btn-secondary" id="shareGeneratedAudioButton" onclick="shareGeneratedAudio()" disabled>Condividi audio</button>
-            </div>
-
             <div class="settings-group" id="synthResultCard" style="display: none; margin-top: 16px;">
                 <div class="settings-group-title">Anteprima audio generato</div>
                 <audio id="generatedAudioPlayer" controls style="width: 100%;"></audio>
@@ -753,6 +802,7 @@
         };
 
         let currentProfiles = [];
+        let expandedProfileId = '';
         let currentOriginalAudioUrl = '';
         let currentAiAudioUrl = '';
         let currentGeneratedAudioUrl = '';
@@ -1463,8 +1513,11 @@
 
                 const cards = currentProfiles.map(p => {
                     const profile = String(p.profile || '');
+                    const encodedProfile = encodeURIComponent(profile);
                     const defaults = getProfileDefaults(profile);
                     const samples = Array.isArray(p.samples) ? p.samples : [];
+                    const isSelected = selected === profile;
+                    const isExpanded = expandedProfileId === profile || isSelected;
                     const samplesHtml = samples.length
                         ? `<div class="text-muted" style="margin-top: 6px;">Campioni:</div>` + samples.map(s => {
                             const fname = String(s.filename || '');
@@ -1476,17 +1529,28 @@
                         }).join('')
                         : '<div class="text-muted" style="margin-top: 6px;">Nessun campione</div>';
                     return `
-                        <div class="profile-card">
-                            <div class="profile-card-title">${escapeHtml(String(p.display_name || profile))}</div>
-                            <div class="profile-card-subtitle">Campioni: ${Number(p.sample_count || 0)}</div>
-                            <div class="button-group" style="margin-top: 8px; margin-bottom: 0;">
-                                <button class="btn-secondary btn-small" onclick="selectProfile('${encodeURIComponent(profile)}')">Usa</button>
-                                <button class="btn-secondary btn-small" onclick="renameProfilePrompt('${encodeURIComponent(profile)}')">Rinomina</button>
-                                <button class="btn-secondary btn-small" onclick="deleteProfileById('${encodeURIComponent(profile)}')">Elimina</button>
+                        <details class="profile-card${isSelected ? ' selected' : ''}" ${isExpanded ? 'open' : ''} ontoggle="onProfileCardToggle('${encodedProfile}', this.open)">
+                            <summary class="profile-card-summary">
+                                <div class="profile-card-summary-text">
+                                    <div class="profile-card-title">${escapeHtml(String(p.display_name || profile))}</div>
+                                    <div class="profile-card-subtitle">Profilo pronto per default, campioni e gestione rapida</div>
+                                    <div class="profile-card-meta">
+                                        <span class="profile-chip">Campioni: ${Number(p.sample_count || 0)}</span>
+                                        ${isSelected ? '<span class="profile-chip">Selezionato</span>' : ''}
+                                    </div>
+                                </div>
+                                <div class="profile-card-summary-side">Dettagli</div>
+                            </summary>
+                            <div class="profile-card-content">
+                                <div class="button-group" style="margin-top: 12px; margin-bottom: 0;">
+                                    <button class="btn-secondary btn-small" onclick="selectProfile('${encodedProfile}')">Usa</button>
+                                    <button class="btn-secondary btn-small" onclick="renameProfilePrompt('${encodedProfile}')">Rinomina</button>
+                                    <button class="btn-secondary btn-small" onclick="deleteProfileById('${encodedProfile}')">Elimina</button>
+                                </div>
+                                ${profileDefaultsBlock(profile, defaults)}
+                                ${samplesHtml}
                             </div>
-                            ${profileDefaultsBlock(profile, defaults)}
-                            ${samplesHtml}
-                        </div>
+                        </details>
                     `;
                 }).join('');
 
@@ -1509,6 +1573,7 @@
             if (!profile) {
                 return;
             }
+            expandedProfileId = profile;
             document.getElementById('profileSelect').value = profile;
             document.getElementById('synthProfile').value = profile;
             onProfileChanged();
@@ -1517,9 +1582,18 @@
             showMessage('profilesContainer', `Profilo selezionato: ${label}`, 'success');
         }
 
+        function onProfileCardToggle(encodedProfile, isOpen) {
+            const profile = decodeURIComponent(encodedProfile || '');
+            if (!profile) {
+                return;
+            }
+            expandedProfileId = isOpen ? profile : (expandedProfileId === profile ? '' : expandedProfileId);
+        }
+
         function onProfileChanged() {
             const profile = document.getElementById('profileSelect').value.trim();
             if (profile) {
+                expandedProfileId = profile;
                 document.getElementById('synthProfile').value = profile;
                 applyProfileDefaultsToSynthesis(profile);
             }

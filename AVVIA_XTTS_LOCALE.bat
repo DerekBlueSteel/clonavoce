@@ -16,6 +16,12 @@ set "URL_PARSER_SCRIPT=%CONFIG_DIR%\extract_tunnel_url.py"
 set "URL_TMP_FILE=%CONFIG_DIR%\extract_tunnel_url.tmp"
 set "TUNNEL_URL="
 set "CLOUDFLARED_CMD=cloudflared"
+set "CLOUDFLARED_FIXED_PUBLIC_URL="
+set "CLOUDFLARED_TUNNEL_TOKEN="
+set "RENDER_API_KEY="
+set "RENDER_SERVICE_ID="
+set "RENDER_AUTO_SYNC=1"
+set "RENDER_REMOTE_TIMEOUT_SECONDS=180"
 
 echo ==========================================
 echo  ClonaVoce - Avvio XTTS Locale + Tunnel
@@ -141,11 +147,24 @@ echo [OK] Server locale risponde correttamente.
 
 echo [OK] Avvio tunnel cloudflared...
 del /f /q "%TUNNEL_LOG%" >nul 2>&1
+if not "%CLOUDFLARED_TUNNEL_TOKEN%"=="" (
+    start "Cloudflared XTTS Tunnel" /MIN cmd /c "call "%CLOUDFLARED_CMD%" tunnel run --token "%CLOUDFLARED_TUNNEL_TOKEN%" > "%TUNNEL_LOG%" 2>&1"
+    if "%CLOUDFLARED_FIXED_PUBLIC_URL%"=="" (
+        echo [ERRORE] CLOUDFLARED_TUNNEL_TOKEN impostato ma CLOUDFLARED_FIXED_PUBLIC_URL e vuoto.
+        echo [INFO] Con tunnel nominato serve anche l'URL pubblico stabile configurato.
+        pause
+        exit /b 1
+    )
+    set "TUNNEL_URL=%CLOUDFLARED_FIXED_PUBLIC_URL%"
+    echo [OK] Uso tunnel nominato con URL fisso: !TUNNEL_URL!
+    goto :tunnel_ready
+)
+
 start "Cloudflared XTTS Tunnel" /MIN cmd /c "call "%CLOUDFLARED_CMD%" tunnel --url http://127.0.0.1:%PORT% > "%TUNNEL_LOG%" 2>&1"
 
-if not "%CLOUDFLARED_PUBLIC_URL%"=="" (
-    set "TUNNEL_URL=%CLOUDFLARED_PUBLIC_URL%"
-    echo [OK] Uso URL tunnel da config: !TUNNEL_URL!
+if not "%CLOUDFLARED_FIXED_PUBLIC_URL%"=="" (
+    set "TUNNEL_URL=%CLOUDFLARED_FIXED_PUBLIC_URL%"
+    echo [OK] Uso URL pubblico fisso da config: !TUNNEL_URL!
     goto :tunnel_ready
 )
 
@@ -176,18 +195,73 @@ call :persist_public_url "%CONFIG_FILE%" "%TUNNEL_URL%"
 call :persist_url "%CONFIG_FILE%" "%TUNNEL_URL%/synthesize"
 echo [OK] URL tunnel rilevato: %TUNNEL_URL%
 echo [OK] Config aggiornata: CLONAVOCE_REMOTE_XTTS_URL=%TUNNEL_URL%/synthesize
+if /I "%RENDER_AUTO_SYNC%"=="1" (
+    call :sync_render_env "%TUNNEL_URL%/synthesize" "%CLONAVOCE_REMOTE_XTTS_KEY%" "%RENDER_REMOTE_TIMEOUT_SECONDS%"
+) else (
+    echo [INFO] Sync automatico Render disabilitato: RENDER_AUTO_SYNC=%RENDER_AUTO_SYNC%.
+)
 
 echo.
-echo ------------------------------------------
-echo Valori Render da impostare:
-echo CLONAVOCE_REMOTE_XTTS_URL=%TUNNEL_URL%/synthesize
-echo    CLONAVOCE_REMOTE_XTTS_KEY=%CLONAVOCE_REMOTE_XTTS_KEY%
-echo CLONAVOCE_REMOTE_XTTS_TIMEOUT_SECONDS=180
+echo ==========================================
+echo  Stato finale
+echo ==========================================
+echo  Tunnel locale  : %TUNNEL_URL%
+echo  Endpoint synth : %TUNNEL_URL%/synthesize
+echo  Render URL     : https://clonavoce.onrender.com
 echo.
-echo Poi riavvia/deploy il servizio Render.
-echo ------------------------------------------
+if /I "%RENDER_AUTO_SYNC%"=="1" (
+    if not "%RENDER_API_KEY%"=="" (
+        echo  Render aggiornato automaticamente.
+        echo  - Variabili env aggiornate: OK
+        echo  - Deploy avviato alle: %TIME%
+    ) else (
+        echo  [WARN] Render NON aggiornato: RENDER_API_KEY mancante.
+        echo  Aggiorna manualmente CLONAVOCE_REMOTE_XTTS_URL su Render:
+        echo    %TUNNEL_URL%/synthesize
+    )
+) else (
+    echo  Sync automatico disabilitato.
+    echo  Aggiorna manualmente su Render:
+    echo    CLONAVOCE_REMOTE_XTTS_URL = %TUNNEL_URL%/synthesize
+)
+echo ==========================================
 echo.
+echo (Finestra aperta - il tunnel e il server XTTS sono attivi)
 pause
+exit /b 0
+
+:sync_render_env
+set "_SYNC_URL=%~1"
+set "_SYNC_KEY=%~2"
+set "_SYNC_TIMEOUT=%~3"
+if "%RENDER_API_KEY%"=="" (
+    echo [WARN] Render sync saltato: RENDER_API_KEY non impostata in %CONFIG_FILE%.
+    exit /b 0
+)
+if "%RENDER_SERVICE_ID%"=="" (
+    echo [WARN] Render sync saltato: RENDER_SERVICE_ID non impostato in %CONFIG_FILE%.
+    exit /b 0
+)
+if "%_SYNC_TIMEOUT%"=="" set "_SYNC_TIMEOUT=180"
+
+set "SYNC_RENDER_API_KEY=%RENDER_API_KEY%"
+set "SYNC_RENDER_SERVICE_ID=%RENDER_SERVICE_ID%"
+set "SYNC_REMOTE_XTTS_URL=%_SYNC_URL%"
+set "SYNC_REMOTE_XTTS_KEY=%_SYNC_KEY%"
+set "SYNC_REMOTE_XTTS_TIMEOUT=%_SYNC_TIMEOUT%"
+
+echo [INFO] Sync automatico Render in corso...
+if not exist "%CONFIG_DIR%\render_sync.py" (
+    echo [WARN] render_sync.py non trovato in %CONFIG_DIR%. Sync saltato.
+    exit /b 0
+)
+"%PYTHON_CMD%" "%CONFIG_DIR%\render_sync.py" "%_SYNC_URL%"
+if errorlevel 1 (
+    echo [WARN] Sync Render fallito. Mantengo comunque il tunnel locale attivo.
+    echo [INFO] Verifica RENDER_API_KEY e RENDER_SERVICE_ID in %CONFIG_FILE%.
+    exit /b 0
+)
+echo [OK] Render aggiornato e deploy avviato.
 exit /b 0
 
 :ensure_py311_venv
@@ -386,8 +460,11 @@ if exist "%_CFG%" (
     >"%_TMP%" (
         for /f "usebackq delims=" %%L in ("%_CFG%") do (
             set "_LINE=%%L"
-            set "_PREFIX=!_LINE:~0,25!"
-            if /i "!_PREFIX!"=="CLONAVOCE_REMOTE_XTTS_URL" (
+            for /f "tokens=1,* delims==" %%A in ("!_LINE!") do (
+                set "_KEY=%%~A"
+                set "_VAL=%%~B"
+            )
+            if /i "!_KEY!"=="CLONAVOCE_REMOTE_XTTS_URL" (
                 if not defined _FOUND echo CLONAVOCE_REMOTE_XTTS_URL=%_NEW_URL%
                 set "_FOUND=1"
             ) else (
@@ -411,8 +488,11 @@ if exist "%_CFG%" (
     >"%_TMP%" (
         for /f "usebackq delims=" %%L in ("%_CFG%") do (
             set "_LINE=%%L"
-            set "_PREFIX=!_LINE:~0,22!"
-            if /i "!_PREFIX!"=="CLOUDFLARED_PUBLIC_URL" (
+            for /f "tokens=1,* delims==" %%A in ("!_LINE!") do (
+                set "_KEY=%%~A"
+                set "_VAL=%%~B"
+            )
+            if /i "!_KEY!"=="CLOUDFLARED_PUBLIC_URL" (
                 if not defined _FOUND echo CLOUDFLARED_PUBLIC_URL=%_NEW_URL%
                 set "_FOUND=1"
             ) else (
@@ -445,8 +525,11 @@ if exist "%_CFG%" (
     >"%_TMP%" (
         for /f "usebackq delims=" %%L in ("%_CFG%") do (
             set "_LINE=%%L"
-            set "_PREFIX=!_LINE:~0,23!"
-            if /i "!_PREFIX!"=="CLONAVOCE_REMOTE_XTTS_KEY" (
+            for /f "tokens=1,* delims==" %%A in ("!_LINE!") do (
+                set "_KEY=%%~A"
+                set "_VAL=%%~B"
+            )
+            if /i "!_KEY!"=="CLONAVOCE_REMOTE_XTTS_KEY" (
                 if not defined _FOUND echo CLONAVOCE_REMOTE_XTTS_KEY=%_NEW_KEY%
                 set "_FOUND=1"
             ) else (

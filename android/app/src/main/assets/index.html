@@ -86,6 +86,11 @@
         }
         
         .main-content {
+
+        .tab-button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
             flex: 1;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
@@ -790,6 +795,13 @@
             pollInterval: 2000,
             maxPolls: 150,
         };
+        const runtimeState = {
+            renderReachable: false,
+            pcLinkReachable: false,
+            pcLinkStatus: 'unknown',
+            pcLinkError: '',
+            lastHealth: null,
+        };
         const capabilities = {
             sampleUpload: null,
             canCreateProfile: null,
@@ -1111,6 +1123,144 @@
             return [];
         }
 
+        function loadCachedProfiles() {
+            try {
+                const raw = localStorage.getItem('clonavoceCachedProfiles');
+                if (!raw) {
+                    return [];
+                }
+                const parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed.filter(item => item && typeof item === 'object') : [];
+            } catch (_err) {
+                return [];
+            }
+        }
+
+        function saveCachedProfiles(items) {
+            try {
+                localStorage.setItem('clonavoceCachedProfiles', JSON.stringify(Array.isArray(items) ? items : []));
+            } catch (_err) {
+                // Ignore storage quota issues.
+            }
+        }
+
+        function activateTab(tabName) {
+            const safeTab = String(tabName || '').trim();
+            if (!safeTab) {
+                return;
+            }
+            const target = document.getElementById(safeTab);
+            if (!target) {
+                return;
+            }
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+            target.classList.add('active');
+            const btn = document.querySelector(`.tab-button[data-tab="${safeTab}"]`);
+            if (btn) {
+                btn.classList.add('active');
+            }
+        }
+
+        function updatePcDependentUi() {
+            const offline = !runtimeState.pcLinkReachable;
+            const pcDependentSelectors = [
+                '#profiles button',
+                '#profiles input',
+                '#profiles select',
+                '#profiles textarea',
+                '#synthesize button',
+                '#synthesize input',
+                '#synthesize select',
+                '#synthesize textarea',
+                '#jobs button',
+                '#jobs input',
+                '#jobs select',
+                '#jobs textarea',
+            ].join(',');
+
+            document.querySelectorAll(pcDependentSelectors).forEach((el) => {
+                const tag = String(el.tagName || '').toLowerCase();
+                const type = String(el.getAttribute('type') || '').toLowerCase();
+                if (tag === 'input' && type === 'hidden') {
+                    return;
+                }
+                if (tag === 'textarea' && el.hasAttribute('readonly')) {
+                    el.disabled = offline;
+                    return;
+                }
+                if ('disabled' in el) {
+                    el.disabled = offline;
+                }
+            });
+
+            document.querySelectorAll('.tab-button').forEach((btn) => {
+                const tab = String(btn.dataset.tab || '');
+                btn.disabled = offline && tab !== 'settings';
+            });
+
+            if (offline) {
+                const activeOperationalTab = document.querySelector('.tab-content.active:not(#settings)');
+                if (activeOperationalTab) {
+                    activateTab('settings');
+                }
+                const msg = runtimeState.pcLinkError || 'Collegamento verso il PC non disponibile';
+                const settingsMsg = document.getElementById('settingsMessage');
+                if (settingsMsg && !String(settingsMsg.textContent || '').includes(msg)) {
+                    showMessage('settingsMessage', `Azioni bloccate: ${msg}`, 'error');
+                }
+            }
+        }
+
+        function setConnectionState(renderReachable, pcLinkReachable, pcLinkStatus = 'unknown', pcLinkError = '') {
+            runtimeState.renderReachable = Boolean(renderReachable);
+            runtimeState.pcLinkReachable = Boolean(pcLinkReachable);
+            runtimeState.pcLinkStatus = String(pcLinkStatus || 'unknown');
+            runtimeState.pcLinkError = String(pcLinkError || '');
+            const el = document.getElementById('statusText');
+            if (!el) {
+                return;
+            }
+            if (!renderReachable) {
+                el.textContent = 'Offline';
+                updatePcDependentUi();
+                return;
+            }
+            if (!pcLinkReachable) {
+                el.textContent = 'Offline: PC non raggiungibile';
+                updatePcDependentUi();
+                return;
+            }
+            el.textContent = 'Online: PC collegato';
+            updatePcDependentUi();
+        }
+
+        async function fetchPrivateHealth() {
+            const data = await apiRequest('GET', '/health/private');
+            runtimeState.lastHealth = data;
+            const renderReachable = Boolean(data && data.ok);
+            const pcLinkReachable = Boolean(data && data.pc_link_reachable);
+            const pcLinkStatus = String((data && data.pc_link_status) || 'unknown');
+            const pcLinkError = String((data && data.pc_link_error) || '');
+            setConnectionState(renderReachable, pcLinkReachable, pcLinkStatus, pcLinkError);
+            return data;
+        }
+
+        async function ensurePcLinkAvailable(actionLabel = 'Operazione') {
+            let health = null;
+            try {
+                health = await fetchPrivateHealth();
+            } catch (err) {
+                setConnectionState(false, false, 'offline', String(err?.message || err || 'Connessione assente'));
+                throw new Error(`${actionLabel} non disponibile: Render non raggiungibile.`);
+            }
+            if (!health || !health.pc_link_reachable) {
+                const reason = String(health?.pc_link_error || 'Collegamento verso il PC non disponibile');
+                throw new Error(`${actionLabel} non disponibile: ${reason}`);
+            }
+            return health;
+        }
+
         function getProfileToken(profile) {
             return String((config.profileTokens || {})[profile] || '').trim();
         }
@@ -1350,11 +1500,14 @@
         async function testConnection() {
             document.getElementById('statusText').textContent = 'Test connessione in corso...';
             try {
-                const pub = await apiRequest('GET', '/health');
-                document.getElementById('statusText').textContent = 'Online connesso';
-                showMessage('settingsMessage', `Connessione OK. Health: ${JSON.stringify(pub)}`, 'success');
+                const health = await fetchPrivateHealth();
+                if (health.pc_link_reachable) {
+                    showMessage('settingsMessage', `Connessione OK. Render online e PC raggiungibile.`, 'success');
+                } else {
+                    showMessage('settingsMessage', `Render online ma PC offline: ${health.pc_link_error || 'collegamento non disponibile'}`, 'error');
+                }
             } catch (err) {
-                document.getElementById('statusText').textContent = 'Connessione fallita';
+                setConnectionState(false, false, 'offline', err.message);
                 showMessage('settingsMessage', err.message, 'error');
             }
         }
@@ -1497,6 +1650,7 @@
                 const selected = document.getElementById('profileSelect').value.trim() || document.getElementById('synthProfile').value.trim();
                 const data = await apiRequest('GET', '/profiles');
                 currentProfiles = parseProfilesPayload(data);
+                saveCachedProfiles(currentProfiles);
 
                 const select = document.getElementById('profileSelect');
                 const synthSelect = document.getElementById('synthProfile');
@@ -1569,6 +1723,64 @@
                 onProfileChanged();
             } catch (err) {
                 showLoading('profilesContainer', false);
+                const cached = loadCachedProfiles();
+                currentProfiles = cached;
+                if (cached.length) {
+                    const selected = document.getElementById('profileSelect').value.trim() || document.getElementById('synthProfile').value.trim();
+                    const select = document.getElementById('profileSelect');
+                    const synthSelect = document.getElementById('synthProfile');
+                    select.innerHTML = '<option value="">-- Seleziona profilo --</option>';
+                    synthSelect.innerHTML = '<option value="">-- Seleziona profilo --</option>';
+                    cached.forEach(p => {
+                        const profile = String(p.profile || '').trim();
+                        if (!profile) {
+                            return;
+                        }
+                        const name = String(p.display_name || profile);
+                        const opt = document.createElement('option');
+                        opt.value = profile;
+                        opt.textContent = `${name} (cache)`;
+                        select.appendChild(opt);
+                        synthSelect.appendChild(opt.cloneNode(true));
+                    });
+                    const cards = cached.map(p => {
+                        const profile = String(p.profile || '');
+                        const encodedProfile = encodeURIComponent(profile);
+                        const defaults = getProfileDefaults(profile);
+                        const samples = Array.isArray(p.samples) ? p.samples : [];
+                        const isSelected = selected === profile;
+                        const isExpanded = expandedProfileId === profile || isSelected;
+                        const samplesHtml = samples.length
+                            ? `<div class="text-muted" style="margin-top: 6px;">Campioni in cache UI: ${samples.length}</div>`
+                            : '<div class="text-muted" style="margin-top: 6px;">Nessun campione in cache</div>';
+                        return `
+                            <details class="profile-card${isSelected ? ' selected' : ''}" ${isExpanded ? 'open' : ''} ontoggle="onProfileCardToggle('${encodedProfile}', this.open)">
+                                <summary class="profile-card-summary">
+                                    <div class="profile-card-summary-text">
+                                        <div class="profile-card-title">${escapeHtml(String(p.display_name || profile))}</div>
+                                        <div class="profile-card-subtitle">Profilo mostrato da cache locale: backend/PC non disponibile</div>
+                                        <div class="profile-card-meta">
+                                            <span class="profile-chip">Cache locale</span>
+                                        </div>
+                                    </div>
+                                    <div class="profile-card-summary-side">Dettagli</div>
+                                </summary>
+                                <div class="profile-card-content">
+                                    ${profileDefaultsBlock(profile, defaults)}
+                                    ${samplesHtml}
+                                </div>
+                            </details>
+                        `;
+                    }).join('');
+                    document.getElementById('profilesContainer').innerHTML = cards;
+                    if (selected) {
+                        select.value = selected;
+                        synthSelect.value = selected;
+                    }
+                    onProfileChanged();
+                    showMessage('profilesContainer', `Backend non disponibile. Mostro ${cached.length} profili dalla cache locale.`, 'info');
+                    return;
+                }
                 showMessage('profilesContainer', err.message, 'error');
             }
         }
@@ -1868,6 +2080,7 @@
         }
 
         async function runSynthesis(profile, text, format = 'mp3') {
+            await ensurePcLinkAvailable('Sintesi');
             const token = getProfileToken(profile);
             if (!token) {
                 throw new Error('Token mancante per il profilo selezionato');
@@ -2365,6 +2578,7 @@
         }
 
         async function uploadRecordedSampleAndCompare(options = {}) {
+            await ensurePcLinkAvailable('Confronto con il PC');
             const selectedProfile = String(options?.profileOverride || document.getElementById('profileSelect').value || '').trim();
             const hasRetriedProfileRefresh = Boolean(options?.hasRetriedProfileRefresh);
             logInfo('UPLOAD', 'uploadRecordedSampleAndCompare chiamato', {
@@ -2982,11 +3196,11 @@
 
         document.querySelectorAll('.tab-button').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-                document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
                 const tabName = e.target.dataset.tab;
-                document.getElementById(tabName).classList.add('active');
-                e.target.classList.add('active');
+                if (e.target.disabled) {
+                    return;
+                }
+                activateTab(tabName);
             });
         });
 

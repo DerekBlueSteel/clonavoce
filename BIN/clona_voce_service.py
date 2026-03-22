@@ -390,6 +390,51 @@ def _try_remote_xtts(payload: SynthesizeRequest, output_path: Path) -> tuple[boo
     return True, "ok"
 
 
+def _remote_xtts_health_url() -> str:
+    if not REMOTE_XTTS_URL:
+        return ""
+    base = REMOTE_XTTS_URL.rstrip()
+    if base.endswith("/synthesize"):
+        return base[: -len("/synthesize")] + "/health"
+    return base.rstrip("/") + "/health"
+
+
+def _probe_remote_xtts_health() -> dict[str, Any]:
+    health_url = _remote_xtts_health_url()
+    result: dict[str, Any] = {
+        "configured": bool(REMOTE_XTTS_URL),
+        "reachable": False,
+        "status": "not_configured",
+        "health_url_preview": health_url[:120] if health_url else "",
+        "error": "",
+    }
+    if not health_url:
+        result["error"] = "REMOTE_XTTS_URL non configurato"
+        return result
+
+    req = urllib.request.Request(
+        health_url,
+        headers={"Accept": "application/json"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=min(max(5, REMOTE_XTTS_TIMEOUT), 12)) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            payload = json.loads(raw) if raw else {}
+            result["reachable"] = bool(payload.get("ok", True))
+            result["status"] = "online" if result["reachable"] else "degraded"
+            return result
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        result["status"] = "offline"
+        result["error"] = f"HTTP {exc.code}: {detail[:200]}"
+        return result
+    except Exception as exc:
+        result["status"] = "offline"
+        result["error"] = str(exc)
+        return result
+
+
 def _prepare_uploaded_sample_for_core(source_path: Path) -> Path:
     suffix = source_path.suffix.lower()
     if suffix in {".wav", ".ogg"}:
@@ -671,6 +716,7 @@ def health() -> dict[str, Any]:
 @app.get("/health/private")
 def health_private(_: None = Depends(_auth)) -> dict[str, Any]:
     _cleanup_jobs()
+    remote_health = _probe_remote_xtts_health()
     return {
         "ok": True,
         "service": "clonavoce",
@@ -680,6 +726,11 @@ def health_private(_: None = Depends(_auth)) -> dict[str, Any]:
         "remote_xtts_configured": bool(REMOTE_XTTS_URL),
         "remote_xtts_timeout_seconds": REMOTE_XTTS_TIMEOUT,
         "remote_xtts_url_preview": REMOTE_XTTS_URL[:120] if REMOTE_XTTS_URL else "",
+        "pc_link_configured": remote_health.get("configured", False),
+        "pc_link_reachable": remote_health.get("reachable", False),
+        "pc_link_status": remote_health.get("status", "not_configured"),
+        "pc_link_error": remote_health.get("error", ""),
+        "pc_health_url_preview": remote_health.get("health_url_preview", ""),
     }
 
 

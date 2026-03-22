@@ -12,6 +12,7 @@ import tempfile
 import threading
 import time
 import base64
+import hashlib
 import urllib.request
 import urllib.error
 from concurrent.futures import ThreadPoolExecutor
@@ -116,6 +117,12 @@ class ProfileDefaultsUpdateRequest(BaseModel):
     pitch: int | None = Field(default=None, ge=-24, le=24)
     volume: float | None = Field(default=None, ge=-24.0, le=24.0)
     format: str | None = None
+
+
+class RestoreProfilesFromPcRequest(BaseModel):
+    max_profiles: int = Field(default=30, ge=1, le=200)
+    max_samples_per_profile: int = Field(default=8, ge=1, le=30)
+    max_sample_mb: int = Field(default=12, ge=1, le=50)
 
 
 app = FastAPI(title="ClonaVoce Service", version="1.0.0")
@@ -397,6 +404,128 @@ def _remote_xtts_health_url() -> str:
     if base.endswith("/synthesize"):
         return base[: -len("/synthesize")] + "/health"
     return base.rstrip("/") + "/health"
+
+
+def _remote_xtts_profiles_export_url() -> str:
+    if not REMOTE_XTTS_URL:
+        return ""
+    base = REMOTE_XTTS_URL.rstrip()
+    if base.endswith("/synthesize"):
+        return base[: -len("/synthesize")] + "/profiles/export"
+    return base.rstrip("/") + "/profiles/export"
+
+
+def _restore_profiles_from_pc(max_profiles: int, max_samples_per_profile: int, max_sample_mb: int) -> dict[str, Any]:
+    if not core:
+        raise RuntimeError("core module non disponibile")
+    export_url = _remote_xtts_profiles_export_url()
+    if not export_url:
+        raise RuntimeError("REMOTE_XTTS_URL non configurato")
+
+    query = f"?max_profiles={max_profiles}&max_samples_per_profile={max_samples_per_profile}&max_sample_mb={max_sample_mb}"
+    headers = {"Accept": "application/json"}
+    if REMOTE_XTTS_KEY:
+        headers["X-Remote-Key"] = REMOTE_XTTS_KEY
+
+    req = urllib.request.Request(export_url + query, headers=headers, method="GET")
+    with urllib.request.urlopen(req, timeout=max(10, REMOTE_XTTS_TIMEOUT)) as resp:
+        raw = resp.read().decode("utf-8", errors="replace")
+        payload = json.loads(raw) if raw else {}
+
+    remote_profiles = payload.get("profiles", []) if isinstance(payload, dict) else []
+    if not isinstance(remote_profiles, list):
+        remote_profiles = []
+
+    restored_profiles = 0
+    created_profiles = 0
+    restored_samples = 0
+    skipped_samples = 0
+    failed_profiles = 0
+
+    for item in remote_profiles:
+        if not isinstance(item, dict):
+            continue
+        profile = _slug(item.get("profile") or item.get("display_name") or "profile")
+        display_name = str(item.get("display_name") or profile).strip() or profile
+
+        try:
+            try:
+                data = core.load_profile(profile)
+            except FileNotFoundError:
+                args = core.argparse.Namespace(profile=profile, display_name=display_name, i_am_the_speaker=True)
+                code = core.command_init_profile(args)
+                if code != 0:
+                    raise RuntimeError(f"init profile failed for {profile}")
+                created_profiles += 1
+                data = core.load_profile(profile)
+
+            defaults = item.get("defaults") if isinstance(item.get("defaults"), dict) else {}
+            if defaults:
+                data["defaults"] = _sanitize_profile_defaults(defaults)
+
+            consent = data.get("consent", {}) if isinstance(data.get("consent"), dict) else {}
+            consent["speaker_confirmed"] = bool(item.get("speaker_confirmed", True))
+            remote_token = str(item.get("confirmation_token") or "").strip()
+            if remote_token:
+                consent["confirmation_token"] = remote_token
+            data["consent"] = consent
+            data["display_name"] = display_name
+            core.save_profile(profile, data)
+
+            current = core.load_profile(profile)
+            existing_hashes = {
+                str(s.get("sha256") or "")
+                for s in (current.get("samples", []) if isinstance(current, dict) else [])
+                if isinstance(s, dict) and str(s.get("sha256") or "")
+            }
+
+            sample_items = item.get("samples", []) if isinstance(item.get("samples"), list) else []
+            for sample in sample_items:
+                if not isinstance(sample, dict):
+                    continue
+                b64 = str(sample.get("content_b64") or "").strip()
+                filename = str(sample.get("filename") or "sample.wav").strip() or "sample.wav"
+                if not b64:
+                    continue
+                raw_bytes = base64.b64decode(b64)
+                sha = hashlib.sha256(raw_bytes).hexdigest()
+                if sha in existing_hashes:
+                    skipped_samples += 1
+                    continue
+
+                suffix = Path(filename).suffix.lower() or ".wav"
+                if suffix not in {".wav", ".ogg"}:
+                    suffix = ".wav"
+
+                with tempfile.NamedTemporaryFile(prefix=f"restore_{profile}_", suffix=suffix, delete=False) as tmp:
+                    tmp.write(raw_bytes)
+                    tmp_path = Path(tmp.name)
+                try:
+                    add_args = core.argparse.Namespace(profile=profile, wav=str(tmp_path))
+                    code = core.command_add_sample(add_args)
+                    if code == 0:
+                        restored_samples += 1
+                        existing_hashes.add(sha)
+                finally:
+                    try:
+                        tmp_path.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+
+            restored_profiles += 1
+        except Exception:
+            failed_profiles += 1
+
+    return {
+        "ok": True,
+        "export_url_preview": export_url[:120],
+        "total_remote_profiles": len(remote_profiles),
+        "restored_profiles": restored_profiles,
+        "created_profiles": created_profiles,
+        "failed_profiles": failed_profiles,
+        "restored_samples": restored_samples,
+        "skipped_samples": skipped_samples,
+    }
 
 
 def _probe_remote_xtts_health() -> dict[str, Any]:
@@ -792,6 +921,23 @@ def create_profile(payload: CreateProfileRequest) -> dict[str, Any]:
         "display_name": data.get("display_name", display_name),
         "confirmation_token": (data.get("consent", {}) or {}).get("confirmation_token"),
     }
+
+
+@app.post("/profiles/restore-from-pc")
+def restore_profiles_from_pc(payload: RestoreProfilesFromPcRequest) -> dict[str, Any]:
+    if not core:
+        raise HTTPException(status_code=503, detail="core module not available")
+    try:
+        return _restore_profiles_from_pc(
+            max_profiles=payload.max_profiles,
+            max_samples_per_profile=payload.max_samples_per_profile,
+            max_sample_mb=payload.max_sample_mb,
+        )
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise HTTPException(status_code=502, detail=f"Restore remoto fallito HTTP {exc.code}: {detail[:300]}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Restore remoto fallito: {exc}")
 
 
 @app.get("/profiles/{profile}")

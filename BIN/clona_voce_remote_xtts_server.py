@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
@@ -41,9 +42,101 @@ def _check_key(x_remote_key: str | None) -> None:
         raise HTTPException(status_code=401, detail="Remote key non valida")
 
 
+def _safe_max(value: int, minimum: int, maximum: int) -> int:
+    try:
+        num = int(value)
+    except Exception:
+        num = minimum
+    return max(minimum, min(maximum, num))
+
+
+def _collect_profile_samples_export(profile_data: dict[str, Any], pdir: Path, max_samples: int, max_sample_bytes: int) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+    samples_dir = pdir / "samples"
+
+    ordered_names: list[str] = []
+    for item in profile_data.get("samples", []) if isinstance(profile_data, dict) else []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("filename") or "").strip()
+        if not name:
+            continue
+        basename = Path(name).name
+        if basename in seen:
+            continue
+        seen.add(basename)
+        ordered_names.append(basename)
+
+    if samples_dir.exists():
+        for sample_file in sorted(samples_dir.iterdir()):
+            if not sample_file.is_file():
+                continue
+            if sample_file.name in seen:
+                continue
+            seen.add(sample_file.name)
+            ordered_names.append(sample_file.name)
+
+    for name in ordered_names[:max_samples]:
+        sample_path = samples_dir / name
+        if not sample_path.exists() or not sample_path.is_file():
+            continue
+        if sample_path.stat().st_size > max_sample_bytes:
+            continue
+        raw = sample_path.read_bytes()
+        out.append(
+            {
+                "filename": sample_path.name,
+                "content_b64": base64.b64encode(raw).decode("ascii"),
+            }
+        )
+    return out
+
+
 @app.get("/health")
 def health() -> dict[str, bool]:
     return {"ok": True}
+
+
+@app.get("/profiles/export")
+def export_profiles(
+    max_profiles: int = 30,
+    max_samples_per_profile: int = 8,
+    max_sample_mb: int = 12,
+    x_remote_key: str | None = Header(default=None, alias="X-Remote-Key"),
+) -> dict[str, Any]:
+    _check_key(x_remote_key)
+    core.ensure_dirs()
+
+    max_profiles = _safe_max(max_profiles, 1, 200)
+    max_samples_per_profile = _safe_max(max_samples_per_profile, 1, 30)
+    max_sample_bytes = _safe_max(max_sample_mb, 1, 50) * 1024 * 1024
+
+    names = core.list_profiles()[:max_profiles]
+    profiles: list[dict[str, Any]] = []
+    for name in names:
+        try:
+            data = core.load_profile(name)
+        except Exception:
+            continue
+        consent = data.get("consent", {}) if isinstance(data, dict) else {}
+        pdir = core.profile_dir(name)
+        samples = _collect_profile_samples_export(data, pdir, max_samples_per_profile, max_sample_bytes)
+        profiles.append(
+            {
+                "profile": str(data.get("profile") or name),
+                "display_name": str(data.get("display_name") or name),
+                "speaker_confirmed": bool(consent.get("speaker_confirmed", True)),
+                "confirmation_token": str(consent.get("confirmation_token") or ""),
+                "defaults": data.get("defaults", {}) if isinstance(data.get("defaults"), dict) else {},
+                "samples": samples,
+            }
+        )
+
+    return {
+        "profiles": profiles,
+        "count": len(profiles),
+    }
 
 
 @app.post("/synthesize")

@@ -482,6 +482,27 @@
                 </div>
                 <div id="settingsMessage"></div>
             </div>
+
+            <div class="settings-group">
+                <div class="settings-group-title">Backup locale</div>
+                <div class="text-muted" style="margin-bottom: 10px;">Salva e ripristina API key, token profili e cache profili in un file JSON sul telefono.</div>
+                <input
+                    type="file"
+                    id="settingsBackupFilePicker"
+                    accept="application/json,.json"
+                    style="display: none;"
+                    onchange="importLocalBackupFromPicker(event)"
+                >
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="exportLocalBackupToFile()">Esporta backup</button>
+                    <button class="btn-secondary" onclick="triggerLocalBackupImport()">Importa backup</button>
+                </div>
+                <div class="button-group full" style="margin-top: 8px;">
+                    <button class="btn-secondary" onclick="restoreLastAutoBackup()">Ripristina ultimo auto-backup</button>
+                </div>
+                <div class="text-muted" id="autoBackupStatusText" style="margin-top: 6px;">Auto-backup: in attesa</div>
+                <div id="settingsBackupMessage"></div>
+            </div>
             
             <div class="settings-group">
                 <div class="settings-group-title">Opzioni audio</div>
@@ -849,6 +870,8 @@
         let pendingStopTimer = null;
         const debugLog = [];
         const DEBUG_LOG_LIMIT = 500;
+        const AUTO_BACKUP_STORAGE_KEY = 'clonavoceAutoBackupV1';
+        let autoBackupTimer = null;
 
         function clearPendingStopTimer() {
             if (pendingStopTimer) {
@@ -1149,6 +1172,7 @@
                 if (normalized.length > 0) {
                     localStorage.setItem('clonavoceCachedProfilesLastNonEmpty', JSON.stringify(normalized));
                 }
+                scheduleAutoBackup('cache_profiles');
             } catch (_err) {
                 // Ignore storage quota issues.
             }
@@ -1166,6 +1190,18 @@
             } catch (_err) {
                 return [];
             }
+        }
+
+        function deriveDefaultProfileToken(profile) {
+            const id = String(profile || '').trim();
+            if (!id) {
+                return '';
+            }
+            const normalized = id.toUpperCase().replace(/[^A-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+            if (!normalized) {
+                return '';
+            }
+            return `SELF-VOICE-${normalized}`;
         }
 
         function removeProfileFromCachedLists(profile) {
@@ -1310,6 +1346,11 @@
                 updatePcDependentUi();
                 return;
             }
+            if (runtimeState.pcLinkStatus === 'auth_required') {
+                el.textContent = 'Online: inserisci API key';
+                updatePcDependentUi();
+                return;
+            }
             if (!pcLinkReachable) {
                 el.textContent = 'Offline: PC non raggiungibile';
                 updatePcDependentUi();
@@ -1320,14 +1361,33 @@
         }
 
         async function fetchPrivateHealth() {
-            const data = await apiRequest('GET', '/health/private');
-            runtimeState.lastHealth = data;
-            const renderReachable = Boolean(data && data.ok);
-            const pcLinkReachable = Boolean(data && data.pc_link_reachable);
-            const pcLinkStatus = String((data && data.pc_link_status) || 'unknown');
-            const pcLinkError = String((data && data.pc_link_error) || '');
-            setConnectionState(renderReachable, pcLinkReachable, pcLinkStatus, pcLinkError);
-            return data;
+            try {
+                const data = await apiRequest('GET', '/health/private');
+                runtimeState.lastHealth = data;
+                const renderReachable = Boolean(data && data.ok);
+                const pcLinkReachable = Boolean(data && data.pc_link_reachable);
+                const pcLinkStatus = String((data && data.pc_link_status) || 'unknown');
+                const pcLinkError = String((data && data.pc_link_error) || '');
+                setConnectionState(renderReachable, pcLinkReachable, pcLinkStatus, pcLinkError);
+                return data;
+            } catch (err) {
+                const msg = String(err?.message || err || '').toLowerCase();
+                const authError = msg.includes('api key non valida') || msg.includes('401');
+                if (!authError) {
+                    throw err;
+                }
+                const pub = await apiRequest('GET', '/health');
+                const renderReachable = Boolean(pub && pub.ok);
+                const fallback = {
+                    ok: renderReachable,
+                    pc_link_reachable: false,
+                    pc_link_status: 'auth_required',
+                    pc_link_error: 'API key mancante o non valida',
+                };
+                runtimeState.lastHealth = fallback;
+                setConnectionState(renderReachable, false, 'auth_required', 'API key mancante o non valida');
+                return fallback;
+            }
         }
 
         async function ensurePcLinkAvailable(actionLabel = 'Operazione') {
@@ -1339,6 +1399,10 @@
                 throw new Error(`${actionLabel} non disponibile: Render non raggiungibile.`);
             }
             if (!health || !health.pc_link_reachable) {
+                const status = String(health?.pc_link_status || '').toLowerCase();
+                if (status === 'auth_required') {
+                    throw new Error(`${actionLabel} non disponibile: imposta una API key valida in Impostazioni.`);
+                }
                 const reason = String(health?.pc_link_error || 'Collegamento verso il PC non disponibile');
                 throw new Error(`${actionLabel} non disponibile: ${reason}`);
             }
@@ -1360,6 +1424,11 @@
                 setProfileToken(profileId, fallback);
                 return fallback;
             }
+            const derived = deriveDefaultProfileToken(profileId);
+            if (derived) {
+                setProfileToken(profileId, derived);
+                return derived;
+            }
             return '';
         }
 
@@ -1377,6 +1446,7 @@
                 config.profileTokens[profile] = value;
             }
             saveConfig();
+            scheduleAutoBackup('token');
         }
 
         function loadConfig() {
@@ -1407,6 +1477,12 @@
             }
             document.getElementById('apiBaseUrl').value = config.baseUrl;
             document.getElementById('apiKey').value = config.apiKey;
+            const auto = readAutoBackupPayload();
+            if (auto && auto.created_at) {
+                updateAutoBackupStatusText(`Auto-backup disponibile: ${new Date(auto.created_at).toLocaleString('it-IT')}`);
+            } else {
+                updateAutoBackupStatusText('Auto-backup: in attesa');
+            }
             logInfo('APP', 'Config caricata', { baseUrl: config.baseUrl, hasApiKey: Boolean(config.apiKey) });
         }
 
@@ -1418,6 +1494,164 @@
                 apiKey: config.apiKey,
                 profileTokens: config.profileTokens,
             }));
+            scheduleAutoBackup('config');
+        }
+
+        function updateAutoBackupStatusText(text) {
+            const el = document.getElementById('autoBackupStatusText');
+            if (!el) {
+                return;
+            }
+            el.textContent = String(text || 'Auto-backup: in attesa');
+        }
+
+        function writeAutoBackup(reason = 'manual') {
+            try {
+                const payload = makeLocalBackupPayload();
+                payload.auto_backup = true;
+                payload.reason = reason;
+                localStorage.setItem(AUTO_BACKUP_STORAGE_KEY, JSON.stringify(payload));
+                updateAutoBackupStatusText(`Auto-backup salvato: ${new Date().toLocaleString('it-IT')}`);
+                return true;
+            } catch (_err) {
+                updateAutoBackupStatusText('Auto-backup non riuscito (spazio locale insufficiente)');
+                return false;
+            }
+        }
+
+        function scheduleAutoBackup(reason = 'change') {
+            if (autoBackupTimer) {
+                clearTimeout(autoBackupTimer);
+            }
+            autoBackupTimer = setTimeout(() => {
+                autoBackupTimer = null;
+                writeAutoBackup(reason);
+            }, 250);
+        }
+
+        function readAutoBackupPayload() {
+            try {
+                const raw = localStorage.getItem(AUTO_BACKUP_STORAGE_KEY);
+                if (!raw) {
+                    return null;
+                }
+                const parsed = JSON.parse(raw);
+                return (parsed && typeof parsed === 'object') ? parsed : null;
+            } catch (_err) {
+                return null;
+            }
+        }
+
+        async function restoreLastAutoBackup() {
+            const payload = readAutoBackupPayload();
+            if (!payload) {
+                showMessage('settingsBackupMessage', 'Nessun auto-backup disponibile.', 'error');
+                return;
+            }
+            try {
+                await applyLocalBackupPayload(payload);
+                showMessage('settingsBackupMessage', 'Ultimo auto-backup ripristinato.', 'success');
+            } catch (err) {
+                showMessage('settingsBackupMessage', `Ripristino auto-backup fallito: ${err?.message || err}`, 'error');
+            }
+        }
+
+        function makeLocalBackupPayload() {
+            return {
+                schema: 'clonavoce-mobile-backup-v1',
+                created_at: new Date().toISOString(),
+                config: {
+                    baseUrl: String(config.baseUrl || '').trim(),
+                    apiKey: String(config.apiKey || '').trim(),
+                    profileTokens: { ...(config.profileTokens || {}) },
+                },
+                cachedProfiles: loadCachedProfiles(),
+                cachedProfilesLastNonEmpty: loadLastNonEmptyCachedProfiles(),
+            };
+        }
+
+        function getBackupFilename() {
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+            return `clonavoce_backup_${stamp}.json`;
+        }
+
+        function exportLocalBackupToFile() {
+            try {
+                saveConfig();
+                const payload = makeLocalBackupPayload();
+                const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+                downloadBlob(blob, getBackupFilename());
+                showMessage('settingsBackupMessage', 'Backup locale esportato.', 'success');
+            } catch (err) {
+                showMessage('settingsBackupMessage', `Export backup fallito: ${err?.message || err}`, 'error');
+            }
+        }
+
+        function triggerLocalBackupImport() {
+            const picker = document.getElementById('settingsBackupFilePicker');
+            if (!picker) {
+                showMessage('settingsBackupMessage', 'Selettore file backup non disponibile.', 'error');
+                return;
+            }
+            picker.click();
+        }
+
+        function normalizeBackupProfiles(value) {
+            return Array.isArray(value) ? value.filter(item => item && typeof item === 'object') : [];
+        }
+
+        async function applyLocalBackupPayload(payload) {
+            if (!payload || typeof payload !== 'object') {
+                throw new Error('Formato backup non valido');
+            }
+            if (String(payload.schema || '') !== 'clonavoce-mobile-backup-v1') {
+                throw new Error('Schema backup non supportato');
+            }
+
+            const cfg = (payload.config && typeof payload.config === 'object') ? payload.config : {};
+            const baseUrl = String(cfg.baseUrl || config.baseUrl || '').trim();
+            const apiKey = String(cfg.apiKey || '').trim();
+            const profileTokens = (cfg.profileTokens && typeof cfg.profileTokens === 'object') ? cfg.profileTokens : {};
+
+            config.baseUrl = baseUrl || 'https://clonavoce.onrender.com';
+            config.apiKey = apiKey;
+            config.profileTokens = { ...profileTokens };
+
+            document.getElementById('apiBaseUrl').value = config.baseUrl;
+            document.getElementById('apiKey').value = config.apiKey;
+            saveConfig();
+
+            const cached = normalizeBackupProfiles(payload.cachedProfiles);
+            const cachedLast = normalizeBackupProfiles(payload.cachedProfilesLastNonEmpty);
+            localStorage.setItem('clonavoceCachedProfiles', JSON.stringify(cached));
+            localStorage.setItem('clonavoceCachedProfilesLastNonEmpty', JSON.stringify(cachedLast.length ? cachedLast : cached));
+
+            await refreshProfiles();
+            try {
+                await testConnection();
+            } catch (_err) {
+                // testConnection already updates UI with error details.
+            }
+            writeAutoBackup('restore');
+        }
+
+        async function importLocalBackupFromPicker(event) {
+            const file = event?.target?.files?.[0] || null;
+            if (!file) {
+                return;
+            }
+            try {
+                const text = await file.text();
+                const payload = JSON.parse(text);
+                await applyLocalBackupPayload(payload);
+                showMessage('settingsBackupMessage', 'Backup locale importato con successo.', 'success');
+            } catch (err) {
+                showMessage('settingsBackupMessage', `Import backup fallito: ${err?.message || err}`, 'error');
+            } finally {
+                if (event?.target) {
+                    event.target.value = '';
+                }
+            }
         }
 
         async function decodeResponse(resp) {
@@ -1599,6 +1833,10 @@
             document.getElementById('statusText').textContent = 'Test connessione in corso...';
             try {
                 const health = await fetchPrivateHealth();
+                if (String(health?.pc_link_status || '').toLowerCase() === 'auth_required') {
+                    showMessage('settingsMessage', 'Render online. Inserisci una API key valida nelle Impostazioni.', 'error');
+                    return;
+                }
                 if (health.pc_link_reachable) {
                     showMessage('settingsMessage', `Connessione OK. Render online e PC raggiungibile.`, 'success');
                 } else {
@@ -1746,13 +1984,43 @@
             showLoading('profilesContainer', true);
             try {
                 const selected = document.getElementById('profileSelect').value.trim() || document.getElementById('synthProfile').value.trim();
-                const data = await apiRequest('GET', '/profiles');
+                let data = await apiRequest('GET', '/profiles');
                 currentProfiles = parseProfilesPayload(data);
+                if (!currentProfiles.length) {
+                    try {
+                        const restore = await apiRequest('POST', '/profiles/restore-from-pc', {
+                            max_profiles: 40,
+                            max_samples_per_profile: 8,
+                            max_sample_mb: 12,
+                        });
+                        const restored = Number(restore?.restored_profiles || 0);
+                        const remoteTotal = Number(restore?.total_remote_profiles || 0);
+                        if (restored > 0 || remoteTotal > 0) {
+                            data = await apiRequest('GET', '/profiles');
+                            currentProfiles = parseProfilesPayload(data);
+                            if (currentProfiles.length) {
+                                showMessage('profilesContainer', `Profili ripristinati dal PC: ${currentProfiles.length}`, 'success');
+                            }
+                        }
+                    } catch (_restoreErr) {
+                        // Keep existing fallback behavior if backend does not support restore endpoint.
+                    }
+                }
                 currentProfiles.forEach((p) => {
                     const profile = String(p?.profile || '').trim();
                     const token = String(p?.confirmation_token || '').trim();
-                    if (profile && token && !getProfileToken(profile)) {
+                    if (!profile) {
+                        return;
+                    }
+                    if (token && !getProfileToken(profile)) {
                         setProfileToken(profile, token);
+                        return;
+                    }
+                    if (!token && p?.speaker_confirmed && !getProfileToken(profile)) {
+                        const derived = deriveDefaultProfileToken(profile);
+                        if (derived) {
+                            setProfileToken(profile, derived);
+                        }
                     }
                 });
                 const cachedNonEmpty = loadLastNonEmptyCachedProfiles();

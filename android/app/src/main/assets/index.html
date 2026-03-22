@@ -151,6 +151,11 @@
             min-height: 80px;
             font-family: 'Courier New', monospace;
         }
+
+        #textToSynthesize {
+            resize: both;
+            min-height: 140px;
+        }
         
         .button-group {
             display: grid;
@@ -449,6 +454,23 @@
         .lang-ac-item:hover, .lang-ac-item.selected { background: #667eea22; }
         .translate-btn-row { display: flex; gap: 8px; margin-top: 6px; align-items: center; }
         .translate-status { font-size: 12px; color: #888; flex: 1; }
+
+        .pull-refresh-indicator {
+            display: none;
+            text-align: center;
+            color: #667eea;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 0 2px;
+            opacity: 0;
+            transform: translateY(-8px);
+            transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+        .pull-refresh-indicator.visible {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
     </style>
 </head>
 <body>
@@ -461,6 +483,7 @@
         <button class="tab-button active" data-tab="synthesize">🎤 Sintesi</button>
         <button class="tab-button" data-tab="jobs">📋 Job</button>
         <button class="tab-button" data-tab="profiles">👤 Profili</button>
+        <button class="tab-button" data-tab="phrases">📚 Frasi</button>
         <button class="tab-button" data-tab="settings">⚙ Impostazioni</button>
     </div>
     
@@ -674,6 +697,40 @@
             <div id="profilesContainer"></div>
         </div>
 
+        <!-- PHRASES TAB -->
+        <div class="tab-content" id="phrases">
+            <div class="settings-group">
+                <div class="settings-group-title">Carica frasi da testo</div>
+                <div class="form-group">
+                    <label>Incolla frasi separate da | (pipe)</label>
+                    <textarea id="phrasesPasteArea" placeholder="Frase 1 | Frase 2 | Frase 3 | ..."></textarea>
+                </div>
+                <div class="button-group">
+                    <button class="btn-primary" onclick="loadPhrasesFromPaste()">Carica e organizza</button>
+                    <button class="btn-secondary" onclick="document.getElementById('phrasesPasteArea').value = ''">Cancella</button>
+                </div>
+            </div>
+
+            <div class="settings-group">
+                <div class="settings-group-title">Gestione frasi</div>
+                <div class="form-group">
+                    <label>Frasi disponibili (selezione multipla)</label>
+                    <select id="phrasesManagementList" size="8" style="width: 100%;" multiple></select>
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center;">
+                    <button class="btn-secondary" id="phrasesNavPrevBtn" onclick="navigateSelectedPhrases(-1)" style="flex: 1; display: none;">⬅ Prec</button>
+                    <div class="text-muted" id="phrasesNavStatus" style="text-align: center; min-width: 40px; display: none;">1/1</div>
+                    <button class="btn-secondary" id="phrasesNavNextBtn" onclick="navigateSelectedPhrases(1)" style="flex: 1; display: none;">Succ ➡</button>
+                </div>
+                <div class="text-muted" id="phrasesManagementPreview" style="white-space: pre-wrap; border: 1px solid #ccc; padding: 8px; margin-top: 8px; min-height: 60px; background: #f9f9f9; border-radius: 4px;">Seleziona frasi dalla lista per vederle qui.</div>
+                <div class="button-group" style="margin-top: 12px;">
+                    <button class="btn-secondary" onclick="sortPhrasesAlphabetically()">Ordina A-Z</button>
+                    <button class="btn-danger" onclick="deleteSelectedPhrasesFromManagement()" style="flex: 1; background-color: #dc3545; color: white;">Elimina selezionate</button>
+                </div>
+                <div id="phrasesManagementMessage" class="text-muted" style="margin-top: 12px;">Seleziona una o più frasi, naviga con Prec/Succ per editarle, poi clicca Genera audio nel tab Sintesi.</div>
+            </div>
+        </div>
+
         <!-- SYNTHESIZE TAB -->
         <div class="tab-content active" id="synthesize">
             <div class="form-group">
@@ -688,6 +745,29 @@
             <div class="form-group">
                 <label>Testo da sintetizzare</label>
                 <textarea id="textToSynthesize" placeholder="Inserisci il testo che vuoi sintetizzare..."></textarea>
+                <div class="text-muted" style="margin-top: 6px;">Puoi trascinare l'angolo in basso a destra per allargare il campo. Se selezioni una parte del testo, i parametri job verranno applicati solo alla selezione; il resto usa i default del profilo.</div>
+            </div>
+
+            <div class="settings-group" style="margin-bottom: 16px;">
+                <div class="settings-group-title">Libreria frasi (usate o celebri)</div>
+                <div class="text-muted" style="margin-bottom: 8px;">Salva frasi pronte e portale nel testo da sintetizzare con un tap, poi modificale liberamente.</div>
+                <div class="form-group" style="margin-bottom: 10px;">
+                    <label>Nome frase (opzionale)</label>
+                    <input type="text" id="phraseTitleInput" placeholder="Es. Intro video, Citazione 1...">
+                </div>
+                <div class="button-group" style="margin-bottom: 10px;">
+                    <button class="btn-secondary" onclick="saveCurrentTextAsPhrase()">Salva frase corrente</button>
+                    <button class="btn-secondary" onclick="insertSelectedPhraseIntoSynthesisText()">Porta nel testo</button>
+                </div>
+                <div class="button-group" style="margin-bottom: 10px;">
+                    <button class="btn-secondary" onclick="addDefaultFamousPhrases()">Aggiungi frasi celebri</button>
+                    <button class="btn-secondary" onclick="deleteSelectedPhrase()">Elimina frase</button>
+                </div>
+                <div class="form-group" style="margin-bottom: 8px;">
+                    <label>Frasi salvate</label>
+                    <select id="phraseLibraryList" size="6" style="width: 100%;"></select>
+                </div>
+                <div class="text-muted" id="phraseLibraryPreview" style="white-space: pre-wrap;">Nessuna frase selezionata.</div>
             </div>
 
             <div id="synthProgress" style="display: none; margin-bottom: 16px;">
@@ -700,10 +780,16 @@
             <div class="job-item" id="synthResultCard" style="display: none; margin-bottom: 16px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <span class="job-status done">PRONTO</span>
-                    <span class="text-muted" id="synthResultJobId"></span>
                 </div>
                 <audio id="generatedAudioPlayer" controls preload="none" style="width: 100%;"></audio>
                 <div class="text-muted" id="generatedAudioMeta" style="margin-top: 8px;">Dopo la sintesi potrai ascoltare, salvare o condividere il file.</div>
+            </div>
+
+            <div id="synthResultsMultipleContainer" style="display: none; margin-bottom: 16px;">
+                <div class="settings-group">
+                    <div class="settings-group-title">Risultati sintesi multipla</div>
+                    <div id="synthResultsList"></div>
+                </div>
             </div>
 
             <div class="button-group">
@@ -802,8 +888,8 @@
         
         <!-- JOBS TAB -->
         <div class="tab-content" id="jobs">
+            <div class="pull-refresh-indicator" id="jobsPullRefreshIndicator">Scorri giu per aggiornare</div>
             <div class="button-group full" style="margin-bottom: 16px;">
-                <button class="btn-secondary" onclick="refreshJobs()">Aggiorna job</button>
                 <button class="btn-secondary" id="deleteAllJobsBtn" onclick="deleteAllJobs()">Elimina tutti i job</button>
             </div>
             <div id="jobsMessage"></div>
@@ -826,6 +912,8 @@
             pcLinkStatus: 'unknown',
             pcLinkError: '',
             lastHealth: null,
+            lastPcHealthUrlPreview: '',
+            endpointChangeDetectedAt: 0,
         };
         const capabilities = {
             sampleUpload: null,
@@ -871,7 +959,365 @@
         const debugLog = [];
         const DEBUG_LOG_LIMIT = 500;
         const AUTO_BACKUP_STORAGE_KEY = 'clonavoceAutoBackupV1';
+        const PHRASE_LIBRARY_STORAGE_KEY = 'clonavocePhraseLibraryV1';
+        const MAX_PHRASE_LIBRARY_ITEMS = 300;
         let autoBackupTimer = null;
+        let jobsPullStartY = 0;
+        let jobsPullDistance = 0;
+        let jobsPullActive = false;
+        let jobsPullRefreshing = false;
+        let phraseLibrary = [];
+
+        function getDefaultFamousPhrases() {
+            return [
+                { title: 'Carpe diem', text: 'Cogli l\'attimo.' },
+                { title: 'Veni vidi vici', text: 'Veni, vidi, vici.' },
+                { title: 'Essere o non essere', text: 'Essere o non essere, questo e il dilemma.' },
+                { title: 'The only limit', text: 'The only limit to our realization of tomorrow is our doubts of today.' },
+                { title: 'Stay hungry', text: 'Stay hungry, stay foolish.' },
+            ];
+        }
+
+        function normalizePhraseLibrary(items) {
+            const src = Array.isArray(items) ? items : [];
+            const out = [];
+            const seenTexts = new Set();
+            for (const row of src) {
+                if (!row || typeof row !== 'object') {
+                    continue;
+                }
+                const text = String(row.text || '').trim();
+                if (!text) {
+                    continue;
+                }
+                // Scarta duplicati automaticamente
+                if (seenTexts.has(text)) {
+                    continue;
+                }
+                seenTexts.add(text);
+                const title = String(row.title || '').trim() || text.slice(0, 36);
+                out.push({ title: title.slice(0, 80), text, created_at: String(row.created_at || '') });
+                if (out.length >= MAX_PHRASE_LIBRARY_ITEMS) {
+                    break;
+                }
+            }
+            return out;
+        }
+
+        function savePhraseLibrary() {
+            phraseLibrary = normalizePhraseLibrary(phraseLibrary);
+            localStorage.setItem(PHRASE_LIBRARY_STORAGE_KEY, JSON.stringify(phraseLibrary));
+            scheduleAutoBackup('phrases');
+        }
+
+        function loadPhraseLibrary() {
+            try {
+                const raw = localStorage.getItem(PHRASE_LIBRARY_STORAGE_KEY);
+                if (!raw) {
+                    phraseLibrary = [];
+                    return;
+                }
+                phraseLibrary = normalizePhraseLibrary(JSON.parse(raw));
+            } catch (_err) {
+                phraseLibrary = [];
+            }
+        }
+
+        function formatPhraseItemLabel(item, idx) {
+            const title = String(item?.title || '').trim() || `Frase ${idx + 1}`;
+            const preview = String(item?.text || '').trim().replace(/\s+/g, ' ').slice(0, 48);
+            return preview ? `${title} - ${preview}` : title;
+        }
+
+        function updatePhraseLibraryPreview() {
+            const list = document.getElementById('phraseLibraryList');
+            const preview = document.getElementById('phraseLibraryPreview');
+            if (!list || !preview) {
+                return;
+            }
+            const idx = Number(list.value);
+            if (!Number.isInteger(idx) || idx < 0 || idx >= phraseLibrary.length) {
+                preview.textContent = 'Nessuna frase selezionata.';
+                return;
+            }
+            const item = phraseLibrary[idx];
+            preview.textContent = `${item.title}\n\n${item.text}`;
+        }
+
+        function renderPhraseLibrary() {
+            const list = document.getElementById('phraseLibraryList');
+            if (!list) {
+                return;
+            }
+            const selectedBefore = list.value;
+            list.innerHTML = '';
+            phraseLibrary.forEach((item, idx) => {
+                const opt = document.createElement('option');
+                opt.value = String(idx);
+                opt.textContent = formatPhraseItemLabel(item, idx);
+                list.appendChild(opt);
+            });
+            if (phraseLibrary.length) {
+                const target = Number(selectedBefore);
+                const validTarget = Number.isInteger(target) && target >= 0 && target < phraseLibrary.length;
+                list.value = validTarget ? String(target) : '0';
+            }
+            updatePhraseLibraryPreview();
+        }
+
+        function saveCurrentTextAsPhrase() {
+            const textArea = document.getElementById('textToSynthesize');
+            const titleInput = document.getElementById('phraseTitleInput');
+            const text = String(textArea?.value || '').trim();
+            if (!text) {
+                showMessage('synthMessage', 'Scrivi prima una frase da salvare.', 'error');
+                return;
+            }
+            const title = String(titleInput?.value || '').trim() || text.slice(0, 36);
+            phraseLibrary.unshift({ title, text, created_at: new Date().toISOString() });
+            phraseLibrary = normalizePhraseLibrary(phraseLibrary);
+            savePhraseLibrary();
+            renderPhraseLibrary();
+            if (titleInput) {
+                titleInput.value = '';
+            }
+            showMessage('synthMessage', 'Frase salvata nella libreria.', 'success');
+        }
+
+        function getSelectedPhraseItem() {
+            const list = document.getElementById('phraseLibraryList');
+            const idx = Number(list?.value);
+            if (!Number.isInteger(idx) || idx < 0 || idx >= phraseLibrary.length) {
+                return null;
+            }
+            return { idx, item: phraseLibrary[idx] };
+        }
+
+        function insertSelectedPhraseIntoSynthesisText() {
+            const selected = getSelectedPhraseItem();
+            if (!selected) {
+                showMessage('synthMessage', 'Seleziona una frase dalla listbox.', 'error');
+                return;
+            }
+            const textArea = document.getElementById('textToSynthesize');
+            if (!textArea) {
+                return;
+            }
+
+            const value = String(textArea.value || '');
+            const phrase = String(selected.item.text || '').trim();
+            const start = Number(textArea.selectionStart || 0);
+            const end = Number(textArea.selectionEnd || 0);
+            const hasSelection = end > start;
+            let nextText = value;
+
+            if (hasSelection) {
+                nextText = `${value.slice(0, start)}${phrase}${value.slice(end)}`;
+            } else if (!value.trim()) {
+                nextText = phrase;
+            } else {
+                const sep = /\s$/.test(value) ? '' : '\n\n';
+                nextText = `${value}${sep}${phrase}`;
+            }
+
+            textArea.value = nextText;
+            const caret = hasSelection ? start + phrase.length : nextText.length;
+            textArea.focus();
+            textArea.setSelectionRange(caret, caret);
+            showMessage('synthMessage', 'Frase inserita nel testo (ora puoi modificarla).', 'success');
+        }
+
+        function deleteSelectedPhrase() {
+            const selected = getSelectedPhraseItem();
+            if (!selected) {
+                showMessage('synthMessage', 'Seleziona una frase da eliminare.', 'error');
+                return;
+            }
+            if (!confirm(`Eliminare la frase "${selected.item.title}"?`)) {
+                return;
+            }
+            phraseLibrary.splice(selected.idx, 1);
+            savePhraseLibrary();
+            renderPhraseLibrary();
+            showMessage('synthMessage', 'Frase eliminata.', 'success');
+        }
+
+        function addDefaultFamousPhrases() {
+            const defaults = getDefaultFamousPhrases();
+            const existingTextSet = new Set(phraseLibrary.map(item => String(item.text || '').trim()));
+            let added = 0;
+            defaults.forEach((item) => {
+                const text = String(item.text || '').trim();
+                if (!text || existingTextSet.has(text)) {
+                    return;
+                }
+                phraseLibrary.push({
+                    title: String(item.title || '').trim() || text.slice(0, 36),
+                    text,
+                    created_at: new Date().toISOString(),
+                });
+                existingTextSet.add(text);
+                added += 1;
+            });
+            savePhraseLibrary();
+            renderPhraseLibrary();
+            showMessage('synthMessage', added > 0 ? `Aggiunte ${added} frasi celebri.` : 'Frasi celebri gia presenti.', 'info');
+        }
+
+        // ===== GESTIONE SELEZIONE MULTIPLA FRASI E NAVIGAZIONE =====
+        let currentSelectedPhrasesIndices = [];
+        let currentNavigationIndex = 0;
+
+        function loadPhrasesFromPaste() {
+            const pasteArea = document.getElementById('phrasesPasteArea');
+            const text = String(pasteArea?.value || '').trim();
+            if (!text) {
+                showMessage('phrasesManagementMessage', 'Incolla frasi separate da | (pipe)', 'error');
+                return;
+            }
+            const parts = text.split('|').map(s => String(s || '').trim()).filter(s => s.length > 0);
+            if (!parts.length) {
+                showMessage('phrasesManagementMessage', 'Nessuna frase trovata', 'error');
+                return;
+            }
+            const existingTextSet = new Set(phraseLibrary.map(item => String(item.text || '').trim()));
+            let added = 0;
+            parts.forEach((text, idx) => {
+                if (existingTextSet.has(text)) {
+                    return;
+                }
+                phraseLibrary.push({
+                    title: `Frase ${phraseLibrary.length + 1}`,
+                    text,
+                    created_at: new Date().toISOString(),
+                });
+                existingTextSet.add(text);
+                added += 1;
+            });
+            savePhraseLibrary();
+            sortPhrasesAlphabetically();
+            pasteArea.value = '';
+            showMessage('phrasesManagementMessage', `Caricate ${added}/${parts.length} frasi (${parts.length - added} duplicate scartate).`, 'success');
+        }
+
+        function sortPhrasesAlphabetically() {
+            phraseLibrary.sort((a, b) => {
+                const aText = String(a.text || '').trim().toLowerCase();
+                const bText = String(b.text || '').trim().toLowerCase();
+                return aText.localeCompare(bText);
+            });
+            savePhraseLibrary();
+            renderPhrasesManagementList();
+            showMessage('phrasesManagementMessage', 'Frasi ordinate alfabeticamente.', 'success');
+        }
+
+        function renderPhrasesManagementList() {
+            const list = document.getElementById('phrasesManagementList');
+            if (!list) {
+                return;
+            }
+            list.innerHTML = '';
+            phraseLibrary.forEach((item, idx) => {
+                const opt = document.createElement('option');
+                opt.value = String(idx);
+                const preview = String(item.text || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+                opt.textContent = preview || `Frase ${idx + 1}`;
+                list.appendChild(opt);
+            });
+        }
+
+        function updatePhrasesManagementPreview() {
+            const list = document.getElementById('phrasesManagementList');
+            const preview = document.getElementById('phrasesManagementPreview');
+            if (!list || !preview) {
+                return;
+            }
+            const selectedIndices = Array.from(list.selectedOptions).map(opt => Number(opt.value));
+            if (!selectedIndices.length) {
+                preview.textContent = 'Seleziona frasi dalla lista per vederle qui.';
+                return;
+            }
+            const texts = selectedIndices.map((idx) => {
+                const item = phraseLibrary[idx];
+                return `[${item.title}]\\n${item.text}`;
+            }).join('\\n\\n---\\n\\n');
+            preview.textContent = texts;
+        }
+
+        function getSelectedPhrasesFromManagement() {
+            const list = document.getElementById('phrasesManagementList');
+            return Array.from(list?.selectedOptions || []).map(opt => Number(opt.value)).filter(idx => idx >= 0 && idx < phraseLibrary.length);
+        }
+
+        function loadPhraseIntoSynthesisText(phraseIdx) {
+            if (phraseIdx < 0 || phraseIdx >= phraseLibrary.length) {
+                return;
+            }
+            const item = phraseLibrary[phraseIdx];
+            const textArea = document.getElementById('textToSynthesize');
+            if (textArea) {
+                textArea.value = String(item.text || '').trim();
+                textArea.focus();
+            }
+        }
+
+        function navigateSelectedPhrases(direction) {
+            const selectedIndices = getSelectedPhrasesFromManagement();
+            if (!selectedIndices.length) {
+                showMessage('phrasesManagementMessage', 'Seleziona almeno una frase.', 'error');
+                return;
+            }
+            currentSelectedPhrasesIndices = selectedIndices;
+            if (direction > 0) {
+                currentNavigationIndex = (currentNavigationIndex + 1) % currentSelectedPhrasesIndices.length;
+            } else {
+                currentNavigationIndex = (currentNavigationIndex - 1 + currentSelectedPhrasesIndices.length) % currentSelectedPhrasesIndices.length;
+            }
+            const phraseIdx = currentSelectedPhrasesIndices[currentNavigationIndex];
+            loadPhraseIntoSynthesisText(phraseIdx);
+            updateSelectedPhrasesNavigationUI();
+            const item = phraseLibrary[phraseIdx];
+            showMessage('phrasesManagementMessage', `Frase ${currentNavigationIndex + 1}/${currentSelectedPhrasesIndices.length}: ${item.title}`, 'info');
+        }
+
+        function updateSelectedPhrasesNavigationUI() {
+            const navPrev = document.getElementById('phrasesNavPrevBtn');
+            const navNext = document.getElementById('phrasesNavNextBtn');
+            const navStatus = document.getElementById('phrasesNavStatus');
+            const selectedIndices = getSelectedPhrasesFromManagement();
+            const hasMultiple = selectedIndices.length > 1;
+            
+            if (navPrev) navPrev.style.display = hasMultiple ? 'block' : 'none';
+            if (navNext) navNext.style.display = hasMultiple ? 'block' : 'none';
+            if (navStatus) {
+                navStatus.style.display = hasMultiple ? 'block' : 'none';
+                if (hasMultiple) {
+                    navStatus.textContent = `${currentNavigationIndex + 1}/${selectedIndices.length}`;
+                }
+            }
+        }
+
+        function deleteSelectedPhrasesFromManagement() {
+            const selectedIndices = getSelectedPhrasesFromManagement();
+            if (!selectedIndices.length) {
+                showMessage('phrasesManagementMessage', 'Seleziona frasi da eliminare.', 'error');
+                return;
+            }
+            const count = selectedIndices.length;
+            if (!confirm(`Eliminare ${count} frase(i) selezionata(e)?`)) {
+                return;
+            }
+            const sortedIndices = selectedIndices.sort((a, b) => b - a);
+            sortedIndices.forEach(idx => {
+                phraseLibrary.splice(idx, 1);
+            });
+            savePhraseLibrary();
+            renderPhrasesManagementList();
+            updatePhrasesManagementPreview();
+            currentSelectedPhrasesIndices = [];
+            currentNavigationIndex = 0;
+            showMessage('phrasesManagementMessage', `Eliminate ${count} frasi.`, 'success');
+        }
 
         function clearPendingStopTimer() {
             if (pendingStopTimer) {
@@ -1248,10 +1694,6 @@
             if (meta) {
                 meta.textContent = 'Dopo la sintesi potrai ascoltare, salvare o condividere il file.';
             }
-            const jobId = document.getElementById('synthResultJobId');
-            if (jobId) {
-                jobId.textContent = '';
-            }
             const card = document.getElementById('synthResultCard');
             if (card) {
                 card.style.display = 'none';
@@ -1283,7 +1725,7 @@
         }
 
         function updatePcDependentUi() {
-            const offline = !runtimeState.pcLinkReachable;
+            const offline = !isPcOperational();
             const pcDependentSelectors = [
                 '#profiles button',
                 '#profiles input',
@@ -1293,6 +1735,10 @@
                 '#synthesize input',
                 '#synthesize select',
                 '#synthesize textarea',
+                '#phrases button',
+                '#phrases input',
+                '#phrases select',
+                '#phrases textarea',
                 '#jobs button',
                 '#jobs input',
                 '#jobs select',
@@ -1332,6 +1778,15 @@
             }
         }
 
+        function isEndpointRestartingStatus(status) {
+            const s = String(status || '').toLowerCase();
+            return s === 'endpoint_switching' || s === 'endpoint_changed' || s === 'restarting';
+        }
+
+        function isPcOperational() {
+            return Boolean(runtimeState.pcLinkReachable) && !isEndpointRestartingStatus(runtimeState.pcLinkStatus);
+        }
+
         function setConnectionState(renderReachable, pcLinkReachable, pcLinkStatus = 'unknown', pcLinkError = '') {
             runtimeState.renderReachable = Boolean(renderReachable);
             runtimeState.pcLinkReachable = Boolean(pcLinkReachable);
@@ -1351,6 +1806,11 @@
                 updatePcDependentUi();
                 return;
             }
+            if (isEndpointRestartingStatus(runtimeState.pcLinkStatus)) {
+                el.textContent = 'Offline: riavvio in corso';
+                updatePcDependentUi();
+                return;
+            }
             if (!pcLinkReachable) {
                 el.textContent = 'Offline: PC non raggiungibile';
                 updatePcDependentUi();
@@ -1365,9 +1825,34 @@
                 const data = await apiRequest('GET', '/health/private');
                 runtimeState.lastHealth = data;
                 const renderReachable = Boolean(data && data.ok);
-                const pcLinkReachable = Boolean(data && data.pc_link_reachable);
-                const pcLinkStatus = String((data && data.pc_link_status) || 'unknown');
-                const pcLinkError = String((data && data.pc_link_error) || '');
+                let pcLinkReachable = Boolean(data && data.pc_link_reachable);
+                let pcLinkStatus = String((data && data.pc_link_status) || 'unknown');
+                let pcLinkError = String((data && data.pc_link_error) || '');
+                const nextHealthUrlPreview = String((data && data.pc_health_url_preview) || '').trim();
+                const prevHealthUrlPreview = String(runtimeState.lastPcHealthUrlPreview || '').trim();
+
+                if (nextHealthUrlPreview && prevHealthUrlPreview && nextHealthUrlPreview !== prevHealthUrlPreview) {
+                    runtimeState.endpointChangeDetectedAt = Date.now();
+                    logWarn('HEALTH', 'Cambio endpoint PC rilevato', {
+                        previous: prevHealthUrlPreview,
+                        current: nextHealthUrlPreview,
+                    });
+                }
+                if (nextHealthUrlPreview) {
+                    runtimeState.lastPcHealthUrlPreview = nextHealthUrlPreview;
+                }
+
+                const restartWindowActive =
+                    runtimeState.endpointChangeDetectedAt > 0 &&
+                    (Date.now() - runtimeState.endpointChangeDetectedAt) < 120000;
+                if (restartWindowActive) {
+                    pcLinkReachable = false;
+                    pcLinkStatus = 'endpoint_switching';
+                    pcLinkError = 'Endpoint variato: riavvio in corso';
+                } else if (runtimeState.endpointChangeDetectedAt > 0) {
+                    runtimeState.endpointChangeDetectedAt = 0;
+                }
+
                 setConnectionState(renderReachable, pcLinkReachable, pcLinkStatus, pcLinkError);
                 return data;
             } catch (err) {
@@ -1398,10 +1883,13 @@
                 setConnectionState(false, false, 'offline', String(err?.message || err || 'Connessione assente'));
                 throw new Error(`${actionLabel} non disponibile: Render non raggiungibile.`);
             }
-            if (!health || !health.pc_link_reachable) {
+            if (!health || !isPcOperational()) {
                 const status = String(health?.pc_link_status || '').toLowerCase();
                 if (status === 'auth_required') {
                     throw new Error(`${actionLabel} non disponibile: imposta una API key valida in Impostazioni.`);
+                }
+                if (isEndpointRestartingStatus(status)) {
+                    throw new Error(`${actionLabel} non disponibile: endpoint variato, riavvio in corso.`);
                 }
                 const reason = String(health?.pc_link_error || 'Collegamento verso il PC non disponibile');
                 throw new Error(`${actionLabel} non disponibile: ${reason}`);
@@ -1567,6 +2055,7 @@
                 },
                 cachedProfiles: loadCachedProfiles(),
                 cachedProfilesLastNonEmpty: loadLastNonEmptyCachedProfiles(),
+                phraseLibrary: normalizePhraseLibrary(phraseLibrary),
             };
         }
 
@@ -1625,6 +2114,11 @@
             const cachedLast = normalizeBackupProfiles(payload.cachedProfilesLastNonEmpty);
             localStorage.setItem('clonavoceCachedProfiles', JSON.stringify(cached));
             localStorage.setItem('clonavoceCachedProfilesLastNonEmpty', JSON.stringify(cachedLast.length ? cachedLast : cached));
+
+            const importedPhrases = normalizePhraseLibrary(payload.phraseLibrary);
+            phraseLibrary = importedPhrases;
+            savePhraseLibrary();
+            renderPhraseLibrary();
 
             await refreshProfiles();
             try {
@@ -1833,14 +2327,19 @@
             document.getElementById('statusText').textContent = 'Test connessione in corso...';
             try {
                 const health = await fetchPrivateHealth();
-                if (String(health?.pc_link_status || '').toLowerCase() === 'auth_required') {
+                const status = String(runtimeState.pcLinkStatus || health?.pc_link_status || '').toLowerCase();
+                if (status === 'auth_required') {
                     showMessage('settingsMessage', 'Render online. Inserisci una API key valida nelle Impostazioni.', 'error');
                     return;
                 }
-                if (health.pc_link_reachable) {
+                if (isEndpointRestartingStatus(status)) {
+                    showMessage('settingsMessage', 'Offline: riavvio in corso (endpoint PC aggiornato).', 'error');
+                    return;
+                }
+                if (isPcOperational()) {
                     showMessage('settingsMessage', `Connessione OK. Render online e PC raggiungibile.`, 'success');
                 } else {
-                    showMessage('settingsMessage', `Render online ma PC offline: ${health.pc_link_error || 'collegamento non disponibile'}`, 'error');
+                    showMessage('settingsMessage', `Render online ma PC offline: ${runtimeState.pcLinkError || health.pc_link_error || 'collegamento non disponibile'}`, 'error');
                 }
             } catch (err) {
                 setConnectionState(false, false, 'offline', err.message);
@@ -2467,16 +2966,8 @@
             }
         }
 
-        async function runSynthesis(profile, text, format = 'mp3') {
-            await ensurePcLinkAvailable('Sintesi');
-            const token = getProfileToken(profile);
-            if (!token) {
-                throw new Error('Token mancante per il profilo selezionato');
-            }
-            const payload = {
-                profile,
-                text,
-                confirmation_token: token,
+        function getCurrentSynthesisParams() {
+            return {
                 engine: document.getElementById('synthEngine').value,
                 language: document.getElementById('synthLanguage').value,
                 mood: document.getElementById('synthMood').value,
@@ -2485,6 +2976,44 @@
                 speed: parseFloat(document.getElementById('synthSpeed').value),
                 pitch: parseInt(document.getElementById('synthPitch').value, 10),
                 volume: parseFloat(document.getElementById('synthVolume').value),
+            };
+        }
+
+        function getProfileDefaultSynthesisParams(profile, fallbackLanguage = 'it') {
+            const d = getProfileDefaults(profile);
+            return {
+                engine: String(d.engine || 'auto'),
+                language: String(d.language || fallbackLanguage || 'it'),
+                mood: String(d.mood || 'neutro'),
+                preset: String(d.preset || 'professionale'),
+                accent: String(d.accent || 'italiano_standard'),
+                speed: Number(d.speed || 1.0),
+                pitch: Number(d.pitch || 0),
+                volume: Number(d.volume || 0.0),
+            };
+        }
+
+        async function runSynthesis(profile, text, format = 'mp3', languageOverride = '', paramsOverride = null) {
+            await ensurePcLinkAvailable('Sintesi');
+            const token = getProfileToken(profile);
+            if (!token) {
+                throw new Error('Token mancante per il profilo selezionato');
+            }
+            const baseParams = getCurrentSynthesisParams();
+            const effective = { ...baseParams, ...(paramsOverride && typeof paramsOverride === 'object' ? paramsOverride : {}) };
+            const targetLanguage = String(languageOverride || effective.language || 'it').trim() || 'it';
+            const payload = {
+                profile,
+                text,
+                confirmation_token: token,
+                engine: String(effective.engine || 'auto'),
+                language: targetLanguage,
+                mood: String(effective.mood || 'neutro'),
+                preset: String(effective.preset || 'professionale'),
+                accent: String(effective.accent || 'italiano_standard'),
+                speed: Number(effective.speed || 1.0),
+                pitch: Number(effective.pitch || 0),
+                volume: Number(effective.volume || 0.0),
                 format,
                 original_text: lastTranslationOriginal || '',
                 original_language: lastTranslationOriginalLang || '',
@@ -2499,14 +3028,42 @@
                 throw new Error('Risposta senza job_id');
             }
 
+            const synthesisStartedAt = Date.now();
+            let runningSince = 0;
+            let displayedProgress = 0;
+
             for (let i = 0; i < config.maxPolls; i++) {
                 await sleep(config.pollInterval);
-                const progress = Math.min(95, (i / config.maxPolls) * 95);
-                document.getElementById('synthProgressBar').style.width = `${progress}%`;
-                document.getElementById('synthProgressText').textContent = `In elaborazione... (${Math.round(progress)}%)`;
-
                 const status = await apiRequest('GET', `/jobs/${encodeURIComponent(jobId)}`);
                 const state = String(status.status || '').toLowerCase();
+
+                const nowMs = Date.now();
+                const elapsedSec = Math.max(0, (nowMs - synthesisStartedAt) / 1000);
+                let targetProgress = displayedProgress;
+
+                if (state === 'queued') {
+                    // Start from a visible baseline and move quickly while queued.
+                    targetProgress = Math.min(28, 10 + elapsedSec * 2.2);
+                } else if (state === 'running') {
+                    if (!runningSince) {
+                        runningSince = nowMs;
+                    }
+                    const runSec = Math.max(0, (nowMs - runningSince) / 1000);
+                    // Non-linear growth: fast at start, then smoothly slows near completion.
+                    const eased = 1 - Math.exp(-runSec / 14);
+                    targetProgress = 32 + (eased * 60);
+                } else {
+                    targetProgress = Math.min(90, 12 + elapsedSec * 1.5);
+                }
+
+                // Keep progress monotonic and avoid sudden unrealistic jumps.
+                const maxStep = state === 'running' ? 8 : 5;
+                const cappedTarget = Math.max(displayedProgress, Math.min(95, targetProgress));
+                displayedProgress = Math.min(cappedTarget, displayedProgress + maxStep);
+
+                document.getElementById('synthProgressBar').style.width = `${displayedProgress}%`;
+                document.getElementById('synthProgressText').textContent = `In elaborazione... (${Math.round(displayedProgress)}%)`;
+
                 if (state === 'queued') {
                     setUploadActivity('Job in coda sul server, attendo esecuzione', 90);
                 } else if (state === 'running') {
@@ -2528,6 +3085,133 @@
 
             document.getElementById('synthProgress').style.display = 'none';
             throw new Error('Timeout sintesi');
+        }
+
+        function parseLanguageTaggedSegments(rawText, defaultLanguage = 'it') {
+            const text = String(rawText || '').trim();
+            if (!text) {
+                return [];
+            }
+            const fallbackLang = String(defaultLanguage || 'it').trim().toLowerCase() || 'it';
+            const tagRegex = /\[(?:lang\s*:\s*)?([a-z]{2}(?:-[a-z]{2})?)\]/ig;
+            const segments = [];
+            let activeLanguage = fallbackLang;
+            let cursor = 0;
+            let match;
+
+            while ((match = tagRegex.exec(text)) !== null) {
+                const before = text.slice(cursor, match.index).trim();
+                if (before) {
+                    segments.push({ language: activeLanguage, text: before });
+                }
+                activeLanguage = String(match[1] || fallbackLang).trim().toLowerCase() || fallbackLang;
+                cursor = tagRegex.lastIndex;
+            }
+
+            const tail = text.slice(cursor).trim();
+            if (tail) {
+                segments.push({ language: activeLanguage, text: tail });
+            }
+
+            if (!segments.length) {
+                return [{ language: fallbackLang, text }];
+            }
+            return segments;
+        }
+
+        function encodeWavFromAudioBuffer(audioBuffer) {
+            const channels = audioBuffer.numberOfChannels;
+            const sampleRate = audioBuffer.sampleRate;
+            const length = audioBuffer.length;
+            const bytesPerSample = 2;
+            const blockAlign = channels * bytesPerSample;
+            const dataSize = length * blockAlign;
+            const buffer = new ArrayBuffer(44 + dataSize);
+            const view = new DataView(buffer);
+
+            let offset = 0;
+            const writeString = (s) => {
+                for (let i = 0; i < s.length; i++) {
+                    view.setUint8(offset++, s.charCodeAt(i));
+                }
+            };
+
+            writeString('RIFF');
+            view.setUint32(offset, 36 + dataSize, true); offset += 4;
+            writeString('WAVE');
+            writeString('fmt ');
+            view.setUint32(offset, 16, true); offset += 4;
+            view.setUint16(offset, 1, true); offset += 2;
+            view.setUint16(offset, channels, true); offset += 2;
+            view.setUint32(offset, sampleRate, true); offset += 4;
+            view.setUint32(offset, sampleRate * blockAlign, true); offset += 4;
+            view.setUint16(offset, blockAlign, true); offset += 2;
+            view.setUint16(offset, 16, true); offset += 2;
+            writeString('data');
+            view.setUint32(offset, dataSize, true); offset += 4;
+
+            const channelData = [];
+            for (let ch = 0; ch < channels; ch++) {
+                channelData.push(audioBuffer.getChannelData(ch));
+            }
+
+            for (let i = 0; i < length; i++) {
+                for (let ch = 0; ch < channels; ch++) {
+                    const sample = Math.max(-1, Math.min(1, channelData[ch][i] || 0));
+                    const int16 = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+                    view.setInt16(offset, int16, true);
+                    offset += 2;
+                }
+            }
+
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+
+        async function mergeAudioBlobsToWav(blobs) {
+            const valid = (Array.isArray(blobs) ? blobs : []).filter(Boolean);
+            if (!valid.length) {
+                throw new Error('Nessun segmento audio da unire');
+            }
+            if (valid.length === 1) {
+                return valid[0];
+            }
+
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) {
+                throw new Error('AudioContext non disponibile sul dispositivo');
+            }
+            const ctx = new AudioCtx();
+            try {
+                const decoded = [];
+                for (const blob of valid) {
+                    const arr = await blob.arrayBuffer();
+                    const audioBuffer = await ctx.decodeAudioData(arr.slice(0));
+                    decoded.push(audioBuffer);
+                }
+
+                const sampleRate = decoded[0].sampleRate;
+                const channels = decoded.reduce((acc, b) => Math.max(acc, b.numberOfChannels), 1);
+                const totalLength = decoded.reduce((acc, b) => acc + b.length, 0);
+                const offline = new OfflineAudioContext(channels, totalLength, sampleRate);
+
+                let cursor = 0;
+                for (const b of decoded) {
+                    const src = offline.createBufferSource();
+                    src.buffer = b;
+                    src.connect(offline.destination);
+                    src.start(cursor / sampleRate);
+                    cursor += b.length;
+                }
+
+                const rendered = await offline.startRendering();
+                return encodeWavFromAudioBuffer(rendered);
+            } finally {
+                try {
+                    await ctx.close();
+                } catch (_err) {
+                    // Ignore close errors.
+                }
+            }
         }
 
         function downloadBlob(blob, filename) {
@@ -2624,12 +3308,130 @@
             player.src = currentGeneratedAudioUrl;
             player.load();
 
-            document.getElementById('generatedAudioMeta').textContent = `Job ${jobId} pronto in formato ${(lastGeneratedFormat || 'mp3').toUpperCase()}.`;
-            document.getElementById('synthResultJobId').textContent = `ID: ${String(jobId || '').slice(0, 8)}`;
+            document.getElementById('generatedAudioMeta').textContent = `Audio pronto in formato ${(lastGeneratedFormat || 'mp3').toUpperCase()}.`;
             document.getElementById('synthResultCard').style.display = 'block';
             document.getElementById('saveGeneratedAudioButton').disabled = false;
             document.getElementById('shareGeneratedAudioWhatsappButton').disabled = false;
             document.getElementById('shareGeneratedAudioButton').disabled = false;
+        }
+
+        function createExpandableTextItem(text) {
+            const container = document.createElement('div');
+            container.style.cssText = 'margin-bottom: 8px; cursor: pointer; user-select: text;';
+            
+            const textDiv = document.createElement('div');
+            textDiv.style.cssText = 'background: #f5f5f5; padding: 8px; border-radius: 4px; border-left: 3px solid #667eea; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; line-height: 1.4;';
+            textDiv.textContent = String(text || '').trim();
+            
+            let expanded = false;
+            const toggle = () => {
+                expanded = !expanded;
+                if (expanded) {
+                    textDiv.style.cssText = 'background: #f5f5f5; padding: 8px; border-radius: 4px; border-left: 3px solid #667eea; white-space: normal; font-size: 13px; line-height: 1.4; max-height: 200px; overflow-y: auto;';
+                } else {
+                    textDiv.style.cssText = 'background: #f5f5f5; padding: 8px; border-radius: 4px; border-left: 3px solid #667eea; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 13px; line-height: 1.4;';
+                }
+            };
+            
+            textDiv.addEventListener('click', toggle);
+            textDiv.addEventListener('touchstart', toggle);
+            
+            container.appendChild(textDiv);
+            return container;
+        }
+
+        function clearMultipleResultsDisplay() {
+            const container = document.getElementById('synthResultsMultipleContainer');
+            const list = document.getElementById('synthResultsList');
+            if (container) container.style.display = 'none';
+            if (list) list.innerHTML = '';
+        }
+
+        function addMultipleResult(text, blob, jobId, format, index, total) {
+            const container = document.getElementById('synthResultsMultipleContainer');
+            const list = document.getElementById('synthResultsList');
+            
+            if (!container || !list) return;
+            
+            const resultItem = document.createElement('div');
+            resultItem.style.cssText = 'margin-bottom: 12px; padding: 8px; background: white; border: 1px solid #ddd; border-radius: 4px;';
+            
+            // Numero della frase
+            const numDiv = document.createElement('div');
+            numDiv.style.cssText = 'font-size: 12px; color: #999; margin-bottom: 4px;';
+            numDiv.textContent = `Frase ${index + 1}/${total}`;
+            
+            // Testo expandibile
+            const textContainer = createExpandableTextItem(text);
+            
+            // Audio player
+            const audioUrl = URL.createObjectURL(blob);
+            const player = document.createElement('audio');
+            player.style.cssText = 'width: 100%; margin-top: 8px;';
+            player.controls = true;
+            player.preload = 'none';
+            player.src = audioUrl;
+            
+            resultItem.appendChild(numDiv);
+            resultItem.appendChild(textContainer);
+            resultItem.appendChild(player);
+            list.appendChild(resultItem);
+        }
+
+        async function generateJobsFromSelectedPhrasesInSynthesis() {
+            const selectedIndices = getSelectedPhrasesFromManagement();
+            if (!selectedIndices.length) {
+                showMessage('synthMessage', 'Nessuna frase selezionata nel tab Frasi', 'error');
+                return;
+            }
+            
+            const profile = document.getElementById('synthProfile').value.trim();
+            if (!profile) {
+                showMessage('synthMessage', 'Seleziona un profilo', 'error');
+                return;
+            }
+            
+            const format = document.getElementById('format').value || 'mp3';
+            clearGeneratedAudioPreview();
+            clearMultipleResultsDisplay();
+            
+            const container = document.getElementById('synthResultsMultipleContainer');
+            const list = document.getElementById('synthResultsList');
+            if (container) container.style.display = 'block';
+            
+            const total = selectedIndices.length;
+            let completed = 0;
+            let failed = 0;
+            
+            showMessage('synthMessage', `Generazione in corso: 0/${total}...`, 'info');
+            
+            try {
+                for (let i = 0; i < selectedIndices.length; i++) {
+                    const phraseIdx = selectedIndices[i];
+                    const item = phraseLibrary[phraseIdx];
+                    const text = String(item.text || '').trim();
+                    
+                    try {
+                        const out = await runSynthesis(profile, text, format, '');
+                        addMultipleResult(text, out.blob, out.jobId, format, completed + failed, total);
+                        completed += 1;
+                        showMessage('synthMessage', `Generazione in corso: ${completed + failed}/${total}...`, 'info');
+                    } catch (err) {
+                        failed += 1;
+                        console.error(`Errore frase ${phraseIdx}:`, err);
+                        const errorItem = document.createElement('div');
+                        errorItem.style.cssText = 'margin-bottom: 12px; padding: 8px; background: #ffcccc; border: 1px solid #ff6666; border-radius: 4px; color: #cc0000;';
+                        errorItem.textContent = `Frase ${completed + failed}/${total}: ERRORE`;
+                        list.appendChild(errorItem);
+                    }
+                }
+                
+                refreshJobs();
+                showMessage('synthMessage', `Completato: ${completed} audio generati, ${failed} errori.`, completed > 0 ? 'success' : 'error');
+            } catch (err) {
+                console.error('Errore generazione:', err);
+                showMessage('synthMessage', `Errore: ${err.message}`, 'error');
+            }
         }
 
         function saveGeneratedAudio() {
@@ -2896,18 +3698,110 @@
         }
 
         async function synthesizeAudio() {
+            // Controlla se ci sono frasi selezionate nel tab Frasi
+            const selectedPhrasesIndices = getSelectedPhrasesFromManagement();
+            if (selectedPhrasesIndices && selectedPhrasesIndices.length > 0) {
+                // Se ci sono frasi selezionate, genera tutte quelle invece del testo nel textarea
+                return await generateJobsFromSelectedPhrasesInSynthesis();
+            }
+            
             const profile = document.getElementById('synthProfile').value.trim();
-            const text = document.getElementById('textToSynthesize').value.trim();
+            const textArea = document.getElementById('textToSynthesize');
+            const rawText = String(textArea?.value || '');
+            const text = rawText.trim();
             const format = document.getElementById('format').value || 'mp3';
             if (!profile || !text) {
                 showMessage('synthMessage', 'Compila profilo e testo', 'error');
                 return;
             }
             try {
+                clearGeneratedAudioPreview();
                 lastGeneratedProfile = profile;
-                const out = await runSynthesis(profile, text, format);
-                updateGeneratedAudioPreview(out.blob, out.jobId, format);
-                showMessage('synthMessage', 'Audio generato. Ora puoi ascoltarlo, salvarlo o condividerlo.', 'success');
+
+                const selStart = Number(textArea?.selectionStart || 0);
+                const selEnd = Number(textArea?.selectionEnd || 0);
+                const hasSelection = selEnd > selStart;
+
+                if (hasSelection) {
+                    const before = rawText.slice(0, selStart).trim();
+                    const selected = rawText.slice(selStart, selEnd).trim();
+                    const after = rawText.slice(selEnd).trim();
+                    if (!selected) {
+                        throw new Error('Selezione vuota: evidenzia un testo valido');
+                    }
+
+                    const defaultLang = String(document.getElementById('synthLanguage').value || 'it').trim() || 'it';
+                    const defaultParams = getProfileDefaultSynthesisParams(profile, defaultLang);
+                    const selectedParams = getCurrentSynthesisParams();
+                    const chunks = [
+                        { kind: 'before', text: before, params: defaultParams },
+                        { kind: 'selected', text: selected, params: selectedParams },
+                        { kind: 'after', text: after, params: defaultParams },
+                    ].filter(item => item.text);
+
+                    if (chunks.length === 1 && chunks[0].kind === 'selected') {
+                        const out = await runSynthesis(profile, chunks[0].text, format, '', chunks[0].params);
+                        updateGeneratedAudioPreview(out.blob, out.jobId, format);
+                        showMessage('synthMessage', 'Audio generato con parametri applicati alla selezione.', 'success');
+                        refreshJobs();
+                        return;
+                    }
+
+                    showMessage('synthMessage', 'Applico i parametri job solo al testo selezionato. Il resto usa i default profilo.', 'info');
+                    const segmentBlobs = [];
+                    const segmentJobIds = [];
+                    for (let i = 0; i < chunks.length; i++) {
+                        const seg = chunks[i];
+                        const progressText = document.getElementById('synthProgressText');
+                        if (progressText) {
+                            const label = seg.kind === 'selected' ? 'SELEZIONE' : 'DEFAULT';
+                            progressText.textContent = `Blocco ${i + 1}/${chunks.length} (${label})`;
+                        }
+                        const out = await runSynthesis(profile, seg.text, 'wav', '', seg.params);
+                        segmentBlobs.push(out.blob);
+                        segmentJobIds.push(out.jobId);
+                    }
+                    const merged = await mergeAudioBlobsToWav(segmentBlobs);
+                    const syntheticJobId = segmentJobIds[segmentJobIds.length - 1] || `selection_${Date.now()}`;
+                    updateGeneratedAudioPreview(merged, syntheticJobId, 'wav');
+                    showMessage('synthMessage', 'Audio generato: parametri sulla selezione, resto in default profilo.', 'success');
+                    refreshJobs();
+                    return;
+                }
+
+                const defaultLang = String(document.getElementById('synthLanguage').value || 'it').trim() || 'it';
+                const segments = parseLanguageTaggedSegments(text, defaultLang);
+                if (!segments.length) {
+                    throw new Error('Testo non valido');
+                }
+
+                if (segments.length === 1) {
+                    const out = await runSynthesis(profile, segments[0].text, format, segments[0].language);
+                    updateGeneratedAudioPreview(out.blob, out.jobId, format);
+                    showMessage('synthMessage', 'Audio generato. Ora puoi ascoltarlo, salvarlo o condividerlo.', 'success');
+                    refreshJobs();
+                    return;
+                }
+
+                showMessage('synthMessage', `Rilevati ${segments.length} segmenti con tag lingua. Generazione multi-blocco in corso...`, 'info');
+                const segmentBlobs = [];
+                const segmentJobIds = [];
+                for (let i = 0; i < segments.length; i++) {
+                    const seg = segments[i];
+                    const progressText = document.getElementById('synthProgressText');
+                    if (progressText) {
+                        progressText.textContent = `Segmento ${i + 1}/${segments.length} (${String(seg.language || '').toUpperCase()})`;
+                    }
+                    // Use WAV internally for robust concatenation across segments.
+                    const out = await runSynthesis(profile, seg.text, 'wav', seg.language);
+                    segmentBlobs.push(out.blob);
+                    segmentJobIds.push(out.jobId);
+                }
+
+                const merged = await mergeAudioBlobsToWav(segmentBlobs);
+                const syntheticJobId = segmentJobIds[segmentJobIds.length - 1] || `multi_${Date.now()}`;
+                updateGeneratedAudioPreview(merged, syntheticJobId, 'wav');
+                showMessage('synthMessage', `Audio multi-lingua generato (${segments.length} segmenti).`, 'success');
                 refreshJobs();
             } catch (err) {
                 showMessage('synthMessage', err.message, 'error');
@@ -3302,12 +4196,10 @@
                            </div>`
                         : `<div class="text-muted" style="white-space: pre-wrap;">${escapeHtml(fullText || preview)}</div>`;
                     const player = status === 'done'
-                        ? `<audio id="jobPlayer_${escapeHtml(id)}" controls preload="none" style="width: 100%; margin-top: 10px;"></audio>`
+                        ? `<audio id="jobPlayer_${escapeHtml(id)}" controls preload="metadata" style="width: 100%; margin-top: 10px;"></audio>`
                         : '';
                     const actions = status === 'done'
                         ? `<div class="button-group" style="margin-top: 10px;">
-                                <button class="btn-secondary" onclick="loadJobPlayerById('${encodeURIComponent(id)}')">Ascolta</button>
-                                <button class="btn-secondary" onclick="downloadJobById('${encodeURIComponent(id)}')">Salva</button>
                                 <button class="btn-secondary" onclick="shareJobById('${encodeURIComponent(id)}')">Condividi</button>
                                 <button class="btn-secondary" onclick="deleteJobById('${encodeURIComponent(id)}')">Elimina</button>
                            </div>`
@@ -3319,7 +4211,6 @@
                         <div class="job-item">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                                 <span class="job-status ${escapeHtml(status)}">${escapeHtml(status.toUpperCase())}</span>
-                                <span class="text-muted">ID: ${escapeHtml(id.slice(0, 8))}</span>
                             </div>
                             <div class="text-muted">${escapeHtml(when)}</div>
                             <div class="text-muted">${escapeHtml(compactMeta)}</div>
@@ -3332,10 +4223,123 @@
                 }).join('');
 
                 document.getElementById('jobsContainer').innerHTML = html;
+                await hydrateDoneJobPlayers(jobs);
             } catch (err) {
                 showLoading('jobsContainer', false);
                 showMessage('jobsMessage', err.message, 'error');
             }
+        }
+
+        async function hydrateDoneJobPlayers(jobs) {
+            const list = Array.isArray(jobs) ? jobs : [];
+            for (const job of list) {
+                const status = String(job?.status || '').toLowerCase();
+                const jobId = String(job?.id || '').trim();
+                if (status !== 'done' || !jobId) {
+                    continue;
+                }
+                try {
+                    const blob = await fetchJobAudioBlob(jobId);
+                    if (!jobAudioUrlCache.has(jobId)) {
+                        jobAudioUrlCache.set(jobId, URL.createObjectURL(blob));
+                    }
+                    const player = document.getElementById(`jobPlayer_${jobId}`);
+                    if (player && !player.src) {
+                        player.src = jobAudioUrlCache.get(jobId);
+                    }
+                } catch (_err) {
+                    // Keep other players usable even if one job audio fails.
+                }
+            }
+        }
+
+        function updateJobsPullRefreshIndicator(distance, refreshing = false) {
+            const indicator = document.getElementById('jobsPullRefreshIndicator');
+            if (!indicator) {
+                return;
+            }
+            const d = Math.max(0, Number(distance) || 0);
+            if (refreshing) {
+                indicator.classList.add('visible');
+                indicator.textContent = 'Aggiornamento job in corso...';
+                return;
+            }
+            if (d <= 0) {
+                indicator.classList.remove('visible');
+                indicator.textContent = 'Scorri giu per aggiornare';
+                return;
+            }
+            indicator.classList.add('visible');
+            indicator.textContent = d >= 70 ? 'Rilascia per aggiornare' : 'Scorri giu per aggiornare';
+        }
+
+        function installJobsPullToRefresh() {
+            const scroller = document.querySelector('.main-content');
+            if (!scroller) {
+                return;
+            }
+
+            scroller.addEventListener('touchstart', (ev) => {
+                if (jobsPullRefreshing) {
+                    return;
+                }
+                const jobsActive = document.getElementById('jobs')?.classList.contains('active');
+                if (!jobsActive) {
+                    jobsPullActive = false;
+                    jobsPullDistance = 0;
+                    return;
+                }
+                if (scroller.scrollTop > 0) {
+                    jobsPullActive = false;
+                    jobsPullDistance = 0;
+                    return;
+                }
+                jobsPullActive = true;
+                jobsPullDistance = 0;
+                jobsPullStartY = ev.touches?.[0]?.clientY || 0;
+                updateJobsPullRefreshIndicator(0);
+            }, { passive: true });
+
+            scroller.addEventListener('touchmove', (ev) => {
+                if (!jobsPullActive || jobsPullRefreshing) {
+                    return;
+                }
+                const y = ev.touches?.[0]?.clientY || 0;
+                const delta = y - jobsPullStartY;
+                if (delta <= 0) {
+                    jobsPullDistance = 0;
+                    updateJobsPullRefreshIndicator(0);
+                    return;
+                }
+                if (scroller.scrollTop <= 0) {
+                    jobsPullDistance = Math.min(130, delta);
+                    updateJobsPullRefreshIndicator(jobsPullDistance);
+                    if (jobsPullDistance > 10) {
+                        ev.preventDefault();
+                    }
+                }
+            }, { passive: false });
+
+            scroller.addEventListener('touchend', async () => {
+                if (!jobsPullActive || jobsPullRefreshing) {
+                    return;
+                }
+                jobsPullActive = false;
+                const shouldRefresh = jobsPullDistance >= 70;
+                jobsPullDistance = 0;
+                if (!shouldRefresh) {
+                    updateJobsPullRefreshIndicator(0);
+                    return;
+                }
+                jobsPullRefreshing = true;
+                updateJobsPullRefreshIndicator(0, true);
+                try {
+                    await refreshJobs();
+                } finally {
+                    jobsPullRefreshing = false;
+                    updateJobsPullRefreshIndicator(0);
+                }
+            }, { passive: true });
         }
 
         async function downloadJobById(encodedId) {
@@ -3615,6 +4619,22 @@
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('apiBaseUrl').addEventListener('change', saveConfig);
             document.getElementById('apiKey').addEventListener('change', saveConfig);
+            const phraseList = document.getElementById('phraseLibraryList');
+            if (phraseList) {
+                phraseList.addEventListener('change', updatePhraseLibraryPreview);
+            }
+            const phrasesManagementList = document.getElementById('phrasesManagementList');
+            if (phrasesManagementList) {
+                phrasesManagementList.addEventListener('change', () => {
+                    updatePhrasesManagementPreview();
+                    updateSelectedPhrasesNavigationUI();
+                    currentNavigationIndex = 0;
+                });
+            }
+            loadPhraseLibrary();
+            renderPhraseLibrary();
+            renderPhrasesManagementList();
+            installJobsPullToRefresh();
             setRecordingUiState('idle');
             copySynthesisParamsFromSettings();
             logInfo('APP', 'DOMContentLoaded', {

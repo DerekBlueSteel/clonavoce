@@ -669,18 +669,27 @@
                 <textarea id="textToSynthesize" placeholder="Inserisci il testo che vuoi sintetizzare..."></textarea>
             </div>
 
-            <div class="button-group">
-                <button class="btn-primary" onclick="synthesizeAudio()">Genera audio</button>
-                <button class="btn-secondary" id="saveGeneratedAudioButton" onclick="saveGeneratedAudio()" disabled>Salva audio</button>
-                <button class="btn-secondary" id="shareGeneratedAudioWhatsappButton" onclick="shareGeneratedAudioToWhatsApp()" disabled>WhatsApp</button>
-                <button class="btn-secondary" id="shareGeneratedAudioButton" onclick="shareGeneratedAudio()" disabled>Condividi audio</button>
-            </div>
-
             <div id="synthProgress" style="display: none; margin-bottom: 16px;">
                 <div class="progress-bar">
                     <div class="progress-bar-fill" id="synthProgressBar" style="width: 0%;"></div>
                 </div>
                 <div class="text-muted" id="synthProgressText">In elaborazione...</div>
+            </div>
+
+            <div class="job-item" id="synthResultCard" style="display: none; margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span class="job-status done">PRONTO</span>
+                    <span class="text-muted" id="synthResultJobId"></span>
+                </div>
+                <audio id="generatedAudioPlayer" controls preload="none" style="width: 100%;"></audio>
+                <div class="text-muted" id="generatedAudioMeta" style="margin-top: 8px;">Dopo la sintesi potrai ascoltare, salvare o condividere il file.</div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-primary" onclick="synthesizeAudio()">Genera audio</button>
+                <button class="btn-secondary" id="saveGeneratedAudioButton" onclick="saveGeneratedAudio()" disabled>Salva audio</button>
+                <button class="btn-secondary" id="shareGeneratedAudioWhatsappButton" onclick="shareGeneratedAudioToWhatsApp()" disabled>WhatsApp</button>
+                <button class="btn-secondary" id="shareGeneratedAudioButton" onclick="shareGeneratedAudio()" disabled>Condividi audio</button>
             </div>
 
             <div class="form-group">
@@ -767,12 +776,6 @@
                 </div>
             </div>
 
-            <div class="settings-group" id="synthResultCard" style="display: none; margin-top: 16px;">
-                <div class="settings-group-title">Anteprima audio generato</div>
-                <audio id="generatedAudioPlayer" controls style="width: 100%;"></audio>
-                <div class="text-muted" id="generatedAudioMeta" style="margin-top: 8px;">Dopo la sintesi potrai ascoltare, salvare o condividere il file.</div>
-            </div>
-
             <div id="synthMessage"></div>
         </div>
         
@@ -782,6 +785,7 @@
                 <button class="btn-secondary" onclick="refreshJobs()">Aggiorna job</button>
                 <button class="btn-secondary" id="deleteAllJobsBtn" onclick="deleteAllJobs()">Elimina tutti i job</button>
             </div>
+            <div id="jobsMessage"></div>
             
             <div id="jobsContainer"></div>
         </div>
@@ -830,6 +834,7 @@
         let lastGeneratedBlob = null;
         let lastGeneratedJobId = '';
         let lastGeneratedFormat = 'mp3';
+        let lastGeneratedProfile = '';
         let recordingMode = '';
         let nativeRecordingPending = false;
         let nativeRecordingActive = false;
@@ -1163,6 +1168,66 @@
             }
         }
 
+        function removeProfileFromCachedLists(profile) {
+            const profileId = String(profile || '').trim();
+            if (!profileId) {
+                return;
+            }
+            const stripProfile = (items) => {
+                const list = Array.isArray(items) ? items : [];
+                return list.filter(item => String(item?.profile || '').trim() !== profileId);
+            };
+            try {
+                const cached = stripProfile(loadCachedProfiles());
+                localStorage.setItem('clonavoceCachedProfiles', JSON.stringify(cached));
+            } catch (_err) {
+                // Ignore local storage failures.
+            }
+            try {
+                const raw = localStorage.getItem('clonavoceCachedProfilesLastNonEmpty');
+                const parsed = raw ? JSON.parse(raw) : [];
+                const filtered = stripProfile(parsed);
+                localStorage.setItem('clonavoceCachedProfilesLastNonEmpty', JSON.stringify(filtered));
+            } catch (_err) {
+                // Ignore local storage failures.
+            }
+            currentProfiles = stripProfile(currentProfiles);
+        }
+
+        function clearGeneratedAudioPreview() {
+            lastGeneratedBlob = null;
+            lastGeneratedJobId = '';
+            lastGeneratedFormat = 'mp3';
+            lastGeneratedProfile = '';
+            if (currentGeneratedAudioUrl) {
+                URL.revokeObjectURL(currentGeneratedAudioUrl);
+                currentGeneratedAudioUrl = '';
+            }
+            const player = document.getElementById('generatedAudioPlayer');
+            if (player) {
+                player.removeAttribute('src');
+                player.load();
+            }
+            const meta = document.getElementById('generatedAudioMeta');
+            if (meta) {
+                meta.textContent = 'Dopo la sintesi potrai ascoltare, salvare o condividere il file.';
+            }
+            const jobId = document.getElementById('synthResultJobId');
+            if (jobId) {
+                jobId.textContent = '';
+            }
+            const card = document.getElementById('synthResultCard');
+            if (card) {
+                card.style.display = 'none';
+            }
+            const saveBtn = document.getElementById('saveGeneratedAudioButton');
+            const waBtn = document.getElementById('shareGeneratedAudioWhatsappButton');
+            const shareBtn = document.getElementById('shareGeneratedAudioButton');
+            if (saveBtn) saveBtn.disabled = true;
+            if (waBtn) waBtn.disabled = true;
+            if (shareBtn) shareBtn.disabled = true;
+        }
+
         function activateTab(tabName) {
             const safeTab = String(tabName || '').trim();
             if (!safeTab) {
@@ -1281,7 +1346,21 @@
         }
 
         function getProfileToken(profile) {
-            return String((config.profileTokens || {})[profile] || '').trim();
+            const profileId = String(profile || '').trim();
+            if (!profileId) {
+                return '';
+            }
+            const saved = String((config.profileTokens || {})[profileId] || '').trim();
+            if (saved) {
+                return saved;
+            }
+            const item = currentProfiles.find(p => String(p?.profile || '').trim() === profileId);
+            const fallback = String(item?.confirmation_token || '').trim();
+            if (fallback) {
+                setProfileToken(profileId, fallback);
+                return fallback;
+            }
+            return '';
         }
 
         function setProfileToken(profile, token) {
@@ -1669,6 +1748,13 @@
                 const selected = document.getElementById('profileSelect').value.trim() || document.getElementById('synthProfile').value.trim();
                 const data = await apiRequest('GET', '/profiles');
                 currentProfiles = parseProfilesPayload(data);
+                currentProfiles.forEach((p) => {
+                    const profile = String(p?.profile || '').trim();
+                    const token = String(p?.confirmation_token || '').trim();
+                    if (profile && token && !getProfileToken(profile)) {
+                        setProfileToken(profile, token);
+                    }
+                });
                 const cachedNonEmpty = loadLastNonEmptyCachedProfiles();
                 const shouldUseFallback = currentProfiles.length === 0 && cachedNonEmpty.length > 0;
                 if (shouldUseFallback) {
@@ -1959,13 +2045,18 @@
             }
             try {
                 await apiRequest('DELETE', `/profiles/${encodeURIComponent(profile)}`);
+                removeProfileFromCachedLists(profile);
                 setProfileToken(profile, '');
                 if (document.getElementById('profileSelect').value === profile) {
                     document.getElementById('profileSelect').value = '';
                     document.getElementById('synthProfile').value = '';
                     document.getElementById('profileToken').value = '';
                 }
+                if (lastGeneratedProfile === profile) {
+                    clearGeneratedAudioPreview();
+                }
                 await refreshProfiles();
+                await refreshJobs();
                 showMessage('profilesContainer', 'Profilo eliminato', 'success');
             } catch (err) {
                 if (isDeleteUnsupportedError(err)) {
@@ -2266,6 +2357,7 @@
             player.load();
 
             document.getElementById('generatedAudioMeta').textContent = `Job ${jobId} pronto in formato ${(lastGeneratedFormat || 'mp3').toUpperCase()}.`;
+            document.getElementById('synthResultJobId').textContent = `ID: ${String(jobId || '').slice(0, 8)}`;
             document.getElementById('synthResultCard').style.display = 'block';
             document.getElementById('saveGeneratedAudioButton').disabled = false;
             document.getElementById('shareGeneratedAudioWhatsappButton').disabled = false;
@@ -2544,6 +2636,7 @@
                 return;
             }
             try {
+                lastGeneratedProfile = profile;
                 const out = await runSynthesis(profile, text, format);
                 updateGeneratedAudioPreview(out.blob, out.jobId, format);
                 showMessage('synthMessage', 'Audio generato. Ora puoi ascoltarlo, salvarlo o condividerlo.', 'success');
@@ -2973,7 +3066,7 @@
                 document.getElementById('jobsContainer').innerHTML = html;
             } catch (err) {
                 showLoading('jobsContainer', false);
-                showMessage('jobsContainer', err.message, 'error');
+                showMessage('jobsMessage', err.message, 'error');
             }
         }
 
@@ -2987,7 +3080,7 @@
                 const blob = await fetchJobAudioBlob(jobId);
                 downloadBlob(blob, getJobAudioFilename(job));
             } catch (err) {
-                showMessage('jobsContainer', err.message, 'error');
+                showMessage('jobsMessage', err.message, 'error');
             }
         }
 
@@ -3018,7 +3111,7 @@
                 player.load();
                 await player.play().catch(() => {});
             } catch (err) {
-                showMessage('jobsContainer', err.message, 'error');
+                showMessage('jobsMessage', err.message, 'error');
             }
         }
 
@@ -3032,7 +3125,7 @@
                 const blob = await fetchJobAudioBlob(jobId);
                 await shareBlobFile(blob, getJobAudioFilename(job), getJobAudioMime(job));
             } catch (err) {
-                showMessage('jobsContainer', err.message, 'error');
+                showMessage('jobsMessage', err.message, 'error');
             }
         }
 
@@ -3042,7 +3135,7 @@
                 return;
             }
             if (capabilities.canDeleteJob === false) {
-                showMessage('jobsContainer', 'Eliminazione job non supportata da questo backend.', 'error');
+                showMessage('jobsMessage', 'Eliminazione job non supportata da questo backend.', 'error');
                 return;
             }
             if (!confirm(`Eliminare il job ${jobId.slice(0, 8)}?`)) {
@@ -3058,22 +3151,23 @@
                 }
                 jobAudioBlobCache.delete(jobId);
                 jobMetaCache.delete(jobId);
+                activateTab('jobs');
                 await refreshJobs();
-                showMessage('jobsContainer', 'Job eliminato', 'success');
+                showMessage('jobsMessage', 'Job eliminato', 'success');
             } catch (err) {
                 if (isDeleteUnsupportedError(err)) {
                     capabilities.canDeleteJob = false;
                     updateCapabilitiesUi();
-                    showMessage('jobsContainer', 'Il server remoto non supporta ancora DELETE /jobs/{job_id}.', 'error');
+                    showMessage('jobsMessage', 'Il server remoto non supporta ancora DELETE /jobs/{job_id}.', 'error');
                     return;
                 }
-                showMessage('jobsContainer', err.message, 'error');
+                showMessage('jobsMessage', err.message, 'error');
             }
         }
 
         async function deleteAllJobs() {
             if (capabilities.canDeleteAllJobs === false) {
-                showMessage('jobsContainer', 'Eliminazione multipla job non supportata da questo backend.', 'error');
+                showMessage('jobsMessage', 'Eliminazione multipla job non supportata da questo backend.', 'error');
                 return;
             }
             if (!confirm('Eliminare tutti i job?')) {
@@ -3089,16 +3183,17 @@
                 jobAudioUrlCache.clear();
                 jobAudioBlobCache.clear();
                 jobMetaCache.clear();
+                activateTab('jobs');
                 await refreshJobs();
-                showMessage('jobsContainer', 'Tutti i job sono stati eliminati', 'success');
+                showMessage('jobsMessage', 'Tutti i job sono stati eliminati', 'success');
             } catch (err) {
                 if (isDeleteUnsupportedError(err)) {
                     capabilities.canDeleteAllJobs = false;
                     updateCapabilitiesUi();
-                    showMessage('jobsContainer', 'Il server remoto non supporta ancora DELETE /jobs.', 'error');
+                    showMessage('jobsMessage', 'Il server remoto non supporta ancora DELETE /jobs.', 'error');
                     return;
                 }
-                showMessage('jobsContainer', err.message, 'error');
+                showMessage('jobsMessage', err.message, 'error');
             }
         }
 

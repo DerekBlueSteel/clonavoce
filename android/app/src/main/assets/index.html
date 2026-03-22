@@ -86,14 +86,14 @@
         }
         
         .main-content {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
 
         .tab-button:disabled {
             opacity: 0.45;
             cursor: not-allowed;
-        }
-            flex: 1;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
         }
         
         .tab-content {
@@ -1138,9 +1138,28 @@
 
         function saveCachedProfiles(items) {
             try {
-                localStorage.setItem('clonavoceCachedProfiles', JSON.stringify(Array.isArray(items) ? items : []));
+                const normalized = Array.isArray(items) ? items.filter(item => item && typeof item === 'object') : [];
+                localStorage.setItem('clonavoceCachedProfiles', JSON.stringify(normalized));
+                // Keep a durable snapshot so transient empty backend responses do not wipe app-side profile visibility.
+                if (normalized.length > 0) {
+                    localStorage.setItem('clonavoceCachedProfilesLastNonEmpty', JSON.stringify(normalized));
+                }
             } catch (_err) {
                 // Ignore storage quota issues.
+            }
+        }
+
+        function loadLastNonEmptyCachedProfiles() {
+            try {
+                const raw = localStorage.getItem('clonavoceCachedProfilesLastNonEmpty');
+                if (!raw) {
+                    return [];
+                }
+                const parsed = JSON.parse(raw);
+                const list = Array.isArray(parsed) ? parsed.filter(item => item && typeof item === 'object') : [];
+                return list.length ? list : [];
+            } catch (_err) {
+                return [];
             }
         }
 
@@ -1650,7 +1669,13 @@
                 const selected = document.getElementById('profileSelect').value.trim() || document.getElementById('synthProfile').value.trim();
                 const data = await apiRequest('GET', '/profiles');
                 currentProfiles = parseProfilesPayload(data);
-                saveCachedProfiles(currentProfiles);
+                const cachedNonEmpty = loadLastNonEmptyCachedProfiles();
+                const shouldUseFallback = currentProfiles.length === 0 && cachedNonEmpty.length > 0;
+                if (shouldUseFallback) {
+                    currentProfiles = cachedNonEmpty;
+                } else {
+                    saveCachedProfiles(currentProfiles);
+                }
 
                 const select = document.getElementById('profileSelect');
                 const synthSelect = document.getElementById('synthProfile');
@@ -1715,6 +1740,10 @@
 
                 showLoading('profilesContainer', false);
                 document.getElementById('profilesContainer').innerHTML = cards || '<div class="empty-state"><div class="empty-state-icon">📭</div><p>Nessun profilo disponibile</p></div>';
+
+                if (shouldUseFallback) {
+                    showMessage('profilesContainer', `Backend online ma senza profili. Mostro ${cachedNonEmpty.length} profili dall'ultima cache locale.`, 'info');
+                }
 
                 if (selected) {
                     select.value = selected;

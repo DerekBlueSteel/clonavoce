@@ -745,7 +745,14 @@
             <div class="form-group">
                 <label>Testo da sintetizzare</label>
                 <textarea id="textToSynthesize" placeholder="Inserisci il testo che vuoi sintetizzare..."></textarea>
-                <div class="text-muted" style="margin-top: 6px;">Puoi trascinare l'angolo in basso a destra per allargare il campo. Se selezioni una parte del testo, i parametri job verranno applicati solo alla selezione; il resto usa i default del profilo.</div>
+                <div class="text-muted" style="margin-top: 6px;">Puoi trascinare il bordo inferiore per estendere il campo in altezza. Se selezioni una parte del testo, i parametri job verranno applicati solo alla selezione; il resto usa i default del profilo.</div>
+            </div>
+
+            <div class="button-group" style="margin-bottom: 16px;">
+                <button class="btn-primary" onclick="synthesizeAudio()">Genera audio</button>
+                <button class="btn-secondary" id="saveGeneratedAudioButton" onclick="saveGeneratedAudio()" disabled>Salva audio</button>
+                <button class="btn-secondary" id="shareGeneratedAudioWhatsappButton" onclick="shareGeneratedAudioToWhatsApp()" disabled>WhatsApp</button>
+                <button class="btn-secondary" id="shareGeneratedAudioButton" onclick="shareGeneratedAudio()" disabled>Condividi audio</button>
             </div>
 
             <div class="settings-group" style="margin-bottom: 16px;">
@@ -790,13 +797,6 @@
                     <div class="settings-group-title">Risultati sintesi multipla</div>
                     <div id="synthResultsList"></div>
                 </div>
-            </div>
-
-            <div class="button-group">
-                <button class="btn-primary" onclick="synthesizeAudio()">Genera audio</button>
-                <button class="btn-secondary" id="saveGeneratedAudioButton" onclick="saveGeneratedAudio()" disabled>Salva audio</button>
-                <button class="btn-secondary" id="shareGeneratedAudioWhatsappButton" onclick="shareGeneratedAudioToWhatsApp()" disabled>WhatsApp</button>
-                <button class="btn-secondary" id="shareGeneratedAudioButton" onclick="shareGeneratedAudio()" disabled>Condividi audio</button>
             </div>
 
             <div class="form-group">
@@ -2993,18 +2993,29 @@
             };
         }
 
+        function accentuateParagraphPause(rawText) {
+            const text = String(rawText || '');
+            if (!text) {
+                return text;
+            }
+            // If a sentence ends with a period and the next line is empty,
+            // inject a stronger spoken pause while preserving paragraph breaks.
+            return text.replace(/\.([ \t]*)(\r?\n[ \t]*\r?\n+)/g, '.$1 ...$2');
+        }
+
         async function runSynthesis(profile, text, format = 'mp3', languageOverride = '', paramsOverride = null) {
             await ensurePcLinkAvailable('Sintesi');
             const token = getProfileToken(profile);
             if (!token) {
                 throw new Error('Token mancante per il profilo selezionato');
             }
+            const preparedText = accentuateParagraphPause(text);
             const baseParams = getCurrentSynthesisParams();
             const effective = { ...baseParams, ...(paramsOverride && typeof paramsOverride === 'object' ? paramsOverride : {}) };
             const targetLanguage = String(languageOverride || effective.language || 'it').trim() || 'it';
             const payload = {
                 profile,
-                text,
+                text: preparedText,
                 confirmation_token: token,
                 engine: String(effective.engine || 'auto'),
                 language: targetLanguage,
@@ -4214,7 +4225,6 @@
                             </div>
                             <div class="text-muted">${escapeHtml(when)}</div>
                             <div class="text-muted">${escapeHtml(compactMeta)}</div>
-                            <div class="text-muted">${escapeHtml(preview)}</div>
                             ${translationBlock}
                             ${player}
                             ${actions}

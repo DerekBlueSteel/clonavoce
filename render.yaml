@@ -10,7 +10,7 @@ services:
       - key: CLONAVOCE_API_KEY
         sync: false
       - key: CLONAVOCE_APP_BUILD
-        value: "1.04-20260322-phrases"
+        value: "1.05-20260323-ui-layout"
       - key: CLONAVOCE_MAX_WORKERS
         value: "2"
       - key: CLONAVOCE_JOB_TTL_SECONDS

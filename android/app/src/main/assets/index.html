@@ -156,6 +156,42 @@
             resize: vertical;
             min-height: 140px;
         }
+
+            .synth-secondary-actions {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .synth-secondary-actions button:last-child {
+                grid-column: 1 / -1;
+            }
+
+            .phrase-library-list {
+                margin: 0;
+                padding-left: 24px;
+                display: grid;
+                gap: 8px;
+            }
+
+            .phrase-library-row {
+                margin: 0;
+            }
+
+            .phrase-library-item {
+                width: 100%;
+                text-align: left;
+                text-transform: none;
+                letter-spacing: 0;
+                background: white;
+                border: 1px solid #ddd;
+                color: #333;
+                padding: 10px 12px;
+                border-radius: 6px;
+            }
+
+            .phrase-library-item.selected {
+                border-color: #667eea;
+                background: #eef1ff;
+            }
         
         .button-group {
             display: grid;
@@ -748,11 +784,29 @@
                 <div class="text-muted" style="margin-top: 6px;">Puoi trascinare il bordo inferiore per estendere il campo in altezza. Se selezioni una parte del testo, i parametri job verranno applicati solo alla selezione; il resto usa i default del profilo.</div>
             </div>
 
-            <div class="button-group" style="margin-bottom: 16px;">
+            <div class="button-group full" style="margin-bottom: 8px;">
                 <button class="btn-primary" onclick="synthesizeAudio()">Genera audio</button>
-                <button class="btn-secondary" id="saveGeneratedAudioButton" onclick="saveGeneratedAudio()" disabled>Salva audio</button>
+            </div>
+
+            <div class="button-group synth-secondary-actions" style="margin-bottom: 16px;">
+                <button class="btn-secondary" onclick="clearSynthesisText()">Pulisci testo</button>
                 <button class="btn-secondary" id="shareGeneratedAudioWhatsappButton" onclick="shareGeneratedAudioToWhatsApp()" disabled>WhatsApp</button>
                 <button class="btn-secondary" id="shareGeneratedAudioButton" onclick="shareGeneratedAudio()" disabled>Condividi audio</button>
+            </div>
+
+            <div id="synthProgress" style="display: none; margin-bottom: 16px;">
+                <div class="progress-bar">
+                    <div class="progress-bar-fill" id="synthProgressBar" style="width: 0%;"></div>
+                </div>
+                <div class="text-muted" id="synthProgressText">In elaborazione...</div>
+            </div>
+
+            <div class="job-item" id="synthResultCard" style="display: none; margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span class="job-status done">PRONTO</span>
+                </div>
+                <div class="text-muted" id="generatedAudioMeta" style="margin-bottom: 8px;">Dopo la sintesi potrai ascoltare o condividere il file.</div>
+                <audio id="generatedAudioPlayer" controls preload="none" style="width: 100%;"></audio>
             </div>
 
             <div class="settings-group" style="margin-bottom: 16px;">
@@ -772,24 +826,9 @@
                 </div>
                 <div class="form-group" style="margin-bottom: 8px;">
                     <label>Frasi salvate</label>
-                    <select id="phraseLibraryList" size="6" style="width: 100%;"></select>
+                    <ol id="phraseLibraryList" class="phrase-library-list"></ol>
                 </div>
                 <div class="text-muted" id="phraseLibraryPreview" style="white-space: pre-wrap;">Nessuna frase selezionata.</div>
-            </div>
-
-            <div id="synthProgress" style="display: none; margin-bottom: 16px;">
-                <div class="progress-bar">
-                    <div class="progress-bar-fill" id="synthProgressBar" style="width: 0%;"></div>
-                </div>
-                <div class="text-muted" id="synthProgressText">In elaborazione...</div>
-            </div>
-
-            <div class="job-item" id="synthResultCard" style="display: none; margin-bottom: 16px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span class="job-status done">PRONTO</span>
-                </div>
-                <audio id="generatedAudioPlayer" controls preload="none" style="width: 100%;"></audio>
-                <div class="text-muted" id="generatedAudioMeta" style="margin-top: 8px;">Dopo la sintesi potrai ascoltare, salvare o condividere il file.</div>
             </div>
 
             <div id="synthResultsMultipleContainer" style="display: none; margin-bottom: 16px;">
@@ -1024,18 +1063,54 @@
         }
 
         function formatPhraseItemLabel(item, idx) {
-            const title = String(item?.title || '').trim() || `Frase ${idx + 1}`;
+            const title = String(item?.title || '').trim();
             const preview = String(item?.text || '').trim().replace(/\s+/g, ' ').slice(0, 48);
-            return preview ? `${title} - ${preview}` : title;
+            if (title && preview && !preview.toLowerCase().startsWith(title.toLowerCase())) {
+                return `${title} - ${preview}`;
+            }
+            return title || preview || `Voce ${idx + 1}`;
+        }
+
+        function getPhraseLibrarySelectedIndex() {
+            const list = document.getElementById('phraseLibraryList');
+            const idx = Number(list?.dataset.selectedIndex);
+            if (!Number.isInteger(idx) || idx < 0 || idx >= phraseLibrary.length) {
+                return -1;
+            }
+            return idx;
+        }
+
+        function setPhraseLibrarySelectedIndex(idx) {
+            const list = document.getElementById('phraseLibraryList');
+            if (!list) {
+                return;
+            }
+            if (!Number.isInteger(idx) || idx < 0 || idx >= phraseLibrary.length) {
+                delete list.dataset.selectedIndex;
+                return;
+            }
+            list.dataset.selectedIndex = String(idx);
+        }
+
+        function handlePhraseLibraryClick(ev) {
+            const button = ev.target instanceof Element ? ev.target.closest('.phrase-library-item') : null;
+            if (!button) {
+                return;
+            }
+            const idx = Number(button.dataset.index);
+            if (!Number.isInteger(idx) || idx < 0 || idx >= phraseLibrary.length) {
+                return;
+            }
+            setPhraseLibrarySelectedIndex(idx);
+            renderPhraseLibrary();
         }
 
         function updatePhraseLibraryPreview() {
-            const list = document.getElementById('phraseLibraryList');
             const preview = document.getElementById('phraseLibraryPreview');
-            if (!list || !preview) {
+            if (!preview) {
                 return;
             }
-            const idx = Number(list.value);
+            const idx = getPhraseLibrarySelectedIndex();
             if (!Number.isInteger(idx) || idx < 0 || idx >= phraseLibrary.length) {
                 preview.textContent = 'Nessuna frase selezionata.';
                 return;
@@ -1049,20 +1124,33 @@
             if (!list) {
                 return;
             }
-            const selectedBefore = list.value;
+            const selectedBefore = getPhraseLibrarySelectedIndex();
             list.innerHTML = '';
+            const validTarget = Number.isInteger(selectedBefore) && selectedBefore >= 0 && selectedBefore < phraseLibrary.length;
+            const selectedIndex = phraseLibrary.length ? (validTarget ? selectedBefore : 0) : -1;
             phraseLibrary.forEach((item, idx) => {
-                const opt = document.createElement('option');
-                opt.value = String(idx);
-                opt.textContent = formatPhraseItemLabel(item, idx);
-                list.appendChild(opt);
+                const row = document.createElement('li');
+                row.className = 'phrase-library-row';
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = idx === selectedIndex ? 'phrase-library-item selected' : 'phrase-library-item';
+                btn.dataset.index = String(idx);
+                btn.textContent = formatPhraseItemLabel(item, idx);
+                row.appendChild(btn);
+                list.appendChild(row);
             });
-            if (phraseLibrary.length) {
-                const target = Number(selectedBefore);
-                const validTarget = Number.isInteger(target) && target >= 0 && target < phraseLibrary.length;
-                list.value = validTarget ? String(target) : '0';
-            }
+            setPhraseLibrarySelectedIndex(selectedIndex);
             updatePhraseLibraryPreview();
+        }
+
+        function clearSynthesisText() {
+            const textArea = document.getElementById('textToSynthesize');
+            if (!textArea) {
+                return;
+            }
+            textArea.value = '';
+            textArea.focus();
+            showMessage('synthMessage', 'Campo testo svuotato.', 'success');
         }
 
         function saveCurrentTextAsPhrase() {
@@ -1085,8 +1173,7 @@
         }
 
         function getSelectedPhraseItem() {
-            const list = document.getElementById('phraseLibraryList');
-            const idx = Number(list?.value);
+            const idx = getPhraseLibrarySelectedIndex();
             if (!Number.isInteger(idx) || idx < 0 || idx >= phraseLibrary.length) {
                 return null;
             }
@@ -1692,16 +1779,14 @@
             }
             const meta = document.getElementById('generatedAudioMeta');
             if (meta) {
-                meta.textContent = 'Dopo la sintesi potrai ascoltare, salvare o condividere il file.';
+                meta.textContent = 'Dopo la sintesi potrai ascoltare o condividere il file.';
             }
             const card = document.getElementById('synthResultCard');
             if (card) {
                 card.style.display = 'none';
             }
-            const saveBtn = document.getElementById('saveGeneratedAudioButton');
             const waBtn = document.getElementById('shareGeneratedAudioWhatsappButton');
             const shareBtn = document.getElementById('shareGeneratedAudioButton');
-            if (saveBtn) saveBtn.disabled = true;
             if (waBtn) waBtn.disabled = true;
             if (shareBtn) shareBtn.disabled = true;
         }
@@ -3321,7 +3406,6 @@
 
             document.getElementById('generatedAudioMeta').textContent = `Audio pronto in formato ${(lastGeneratedFormat || 'mp3').toUpperCase()}.`;
             document.getElementById('synthResultCard').style.display = 'block';
-            document.getElementById('saveGeneratedAudioButton').disabled = false;
             document.getElementById('shareGeneratedAudioWhatsappButton').disabled = false;
             document.getElementById('shareGeneratedAudioButton').disabled = false;
         }
@@ -4631,7 +4715,7 @@
             document.getElementById('apiKey').addEventListener('change', saveConfig);
             const phraseList = document.getElementById('phraseLibraryList');
             if (phraseList) {
-                phraseList.addEventListener('change', updatePhraseLibraryPreview);
+                phraseList.addEventListener('click', handlePhraseLibraryClick);
             }
             const phrasesManagementList = document.getElementById('phrasesManagementList');
             if (phrasesManagementList) {

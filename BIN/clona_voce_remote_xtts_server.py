@@ -4,7 +4,11 @@ import argparse
 import base64
 import json
 import os
+import secrets
+import shutil
 import tempfile
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +19,15 @@ import clona_voce_personale as core
 
 REMOTE_KEY = os.getenv("CLONAVOCE_REMOTE_XTTS_KEY", "").strip()
 MAX_SAMPLES = int(os.getenv("CLONAVOCE_REMOTE_MAX_SAMPLES", "4"))
+# Quanti secondi tenere i job completati in memoria prima di scartarli
+JOB_TTL_SECONDS = int(os.getenv("CLONAVOCE_REMOTE_JOB_TTL_SECONDS", "600"))
+
+# Job store in-memory per sintesi async
+_remote_jobs: dict[str, dict[str, Any]] = {}
+_remote_jobs_lock = threading.Lock()
+
+# Serializza le sintesi: GPU e dir-globals sono risorse condivise
+_synthesis_lock = threading.Lock()
 
 
 class SampleItem(BaseModel):
@@ -27,7 +40,11 @@ class RemoteSynthesizeRequest(BaseModel):
     text: str = Field(..., min_length=1)
     language: str = Field(default="it")
     mood: str = Field(default="neutro")
+    preset: str = Field(default="professionale")
+    accent: str = Field(default="italiano_standard")
     speed: float = Field(default=1.0, ge=0.5, le=2.0)
+    pitch: int = Field(default=0, ge=-24, le=24)
+    volume: float = Field(default=0.0, ge=-24.0, le=24.0)
     format: str = Field(default="mp3", pattern="^(mp3|wav)$")
     samples: list[SampleItem] = Field(default_factory=list)
 
@@ -48,6 +65,117 @@ def _safe_max(value: int, minimum: int, maximum: int) -> int:
     except Exception:
         num = minimum
     return max(minimum, min(maximum, num))
+
+
+def _cleanup_old_jobs() -> None:
+    """Rimuove job scaduti e le loro directory temporanee."""
+    now = time.time()
+    to_delete: list[str] = []
+    with _remote_jobs_lock:
+        for job_id, job in _remote_jobs.items():
+            if (now - float(job.get("created_at", 0))) > JOB_TTL_SECONDS:
+                to_delete.append(job_id)
+        for job_id in to_delete:
+            job = _remote_jobs.pop(job_id, None)
+            if job and job.get("tmp_dir"):
+                shutil.rmtree(job["tmp_dir"], ignore_errors=True)
+
+
+def _do_synthesis(job_id: str, payload: RemoteSynthesizeRequest, tmp: Path) -> None:
+    """Esegue la sintesi nel thread di background. Tiene _synthesis_lock già acquisito."""
+    samples = payload.samples[: max(1, MAX_SAMPLES)]
+    profile = core.slugify(payload.profile)
+
+    profiles_dir = tmp / "profiles"
+    output_dir = tmp / "output"
+    profile_dir_path = profiles_dir / profile
+    samples_dir = profile_dir_path / "samples"
+    samples_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    old_profiles_dir = core.PROFILES_DIR
+    old_output_dir = core.OUTPUT_DIR
+    try:
+        core.PROFILES_DIR = profiles_dir
+        core.OUTPUT_DIR = output_dir
+
+        init_args = argparse.Namespace(profile=profile, display_name=profile, i_am_the_speaker=True)
+        core.command_init_profile(init_args)
+
+        for index, item in enumerate(samples, start=1):
+            raw = base64.b64decode(item.content_b64)
+            ext = Path(item.filename).suffix.lower() or ".wav"
+            if ext not in {".wav", ".ogg"}:
+                ext = ".wav"
+            sample_path = tmp / f"incoming_{index:02d}{ext}"
+            sample_path.write_bytes(raw)
+            add_args = argparse.Namespace(profile=profile, wav=str(sample_path))
+            core.command_add_sample(add_args)
+
+        profile_data = core.load_profile(profile)
+        token = str((profile_data.get("consent", {}) or {}).get("confirmation_token", "")).strip()
+        if not token:
+            raise RuntimeError("Token profilo non disponibile")
+
+        out_path = tmp / f"remote_out.{payload.format}"
+        synth_args = argparse.Namespace(
+            profile=profile,
+            text=payload.text,
+            text_file=None,
+            out=str(out_path),
+            format=payload.format,
+            engine="xtts",
+            language=payload.language,
+            mood=payload.mood,
+            preset=payload.preset,
+            accent=payload.accent,
+            speed=payload.speed,
+            pitch=payload.pitch,
+            volume=payload.volume,
+            confirmation_token=token,
+            progress_callback=None,
+        )
+        code = core.command_synthesize(synth_args)
+        if code != 0 or not out_path.exists():
+            raise RuntimeError("Sintesi XTTS non ha prodotto output")
+
+        audio_b64 = base64.b64encode(out_path.read_bytes()).decode("ascii")
+        with _remote_jobs_lock:
+            job = _remote_jobs.get(job_id)
+            if job:
+                job["status"] = "done"
+                job["audio_b64"] = audio_b64
+                job["format"] = payload.format
+                job["finished_at"] = time.time()
+    finally:
+        core.PROFILES_DIR = old_profiles_dir
+        core.OUTPUT_DIR = old_output_dir
+
+
+def _run_remote_synthesis(job_id: str, payload: RemoteSynthesizeRequest) -> None:
+    """Entry point thread di background per ogni job di sintesi."""
+    with _remote_jobs_lock:
+        job = _remote_jobs.get(job_id)
+        if job is None:
+            return
+        job["status"] = "running"
+
+    tmp_dir_path = tempfile.mkdtemp(prefix="clonavoce_rxtts_")
+    with _remote_jobs_lock:
+        if job_id in _remote_jobs:
+            _remote_jobs[job_id]["tmp_dir"] = tmp_dir_path
+
+    try:
+        # _synthesis_lock serializza accesso a GPU e module-globals core.PROFILES_DIR
+        with _synthesis_lock:
+            _do_synthesis(job_id, payload, Path(tmp_dir_path))
+    except Exception as exc:
+        with _remote_jobs_lock:
+            job = _remote_jobs.get(job_id)
+            if job:
+                job["status"] = "failed"
+                job["error"] = str(exc)
+                job["finished_at"] = time.time()
 
 
 def _collect_profile_samples_export(profile_data: dict[str, Any], pdir: Path, max_samples: int, max_sample_bytes: int) -> list[dict[str, str]]:
@@ -94,8 +222,8 @@ def _collect_profile_samples_export(profile_data: dict[str, Any], pdir: Path, ma
 
 
 @app.get("/health")
-def health() -> dict[str, bool]:
-    return {"ok": True}
+def health() -> dict[str, Any]:
+    return {"ok": True, "async_jobs": True}
 
 
 @app.get("/profiles/export")
@@ -142,82 +270,46 @@ def export_profiles(
 @app.post("/synthesize")
 def synthesize(payload: RemoteSynthesizeRequest, x_remote_key: str | None = Header(default=None, alias="X-Remote-Key")) -> dict[str, str]:
     _check_key(x_remote_key)
+    _cleanup_old_jobs()
 
     if not payload.samples:
         raise HTTPException(status_code=400, detail="Nessun sample inviato")
 
-    samples = payload.samples[: max(1, MAX_SAMPLES)]
-    profile = core.slugify(payload.profile)
+    job_id = secrets.token_hex(12)
+    with _remote_jobs_lock:
+        _remote_jobs[job_id] = {
+            "id": job_id,
+            "status": "queued",
+            "created_at": time.time(),
+            "finished_at": None,
+            "audio_b64": "",
+            "format": payload.format,
+            "error": "",
+            "tmp_dir": "",
+        }
 
-    with tempfile.TemporaryDirectory(prefix="clonavoce_remote_xtts_") as tmp_dir:
-        tmp = Path(tmp_dir)
-        profiles_dir = tmp / "profiles"
-        output_dir = tmp / "output"
-        profile_dir = profiles_dir / profile
-        samples_dir = profile_dir / "samples"
-        samples_dir.mkdir(parents=True, exist_ok=True)
-        output_dir.mkdir(parents=True, exist_ok=True)
+    t = threading.Thread(target=_run_remote_synthesis, args=(job_id, payload), daemon=True)
+    t.start()
 
-        old_profiles_dir = core.PROFILES_DIR
-        old_output_dir = core.OUTPUT_DIR
+    return {"job_id": job_id, "async": "true", "status": "queued"}
 
-        try:
-            core.PROFILES_DIR = profiles_dir
-            core.OUTPUT_DIR = output_dir
 
-            init_args = argparse.Namespace(profile=profile, display_name=profile, i_am_the_speaker=True)
-            core.command_init_profile(init_args)
-
-            for index, item in enumerate(samples, start=1):
-                raw = base64.b64decode(item.content_b64)
-                ext = Path(item.filename).suffix.lower() or ".wav"
-                if ext not in {".wav", ".ogg"}:
-                    ext = ".wav"
-                sample_path = tmp / f"incoming_{index:02d}{ext}"
-                sample_path.write_bytes(raw)
-                add_args = argparse.Namespace(profile=profile, wav=str(sample_path))
-                core.command_add_sample(add_args)
-
-            profile_data = core.load_profile(profile)
-            token = str((profile_data.get("consent", {}) or {}).get("confirmation_token", "")).strip()
-            if not token:
-                raise RuntimeError("Token profilo non disponibile")
-
-            out_path = tmp / f"remote_out.{payload.format}"
-            synth_args = argparse.Namespace(
-                profile=profile,
-                text=payload.text,
-                text_file=None,
-                out=str(out_path),
-                format=payload.format,
-                engine="xtts",
-                language=payload.language,
-                mood=payload.mood,
-                preset="professionale",
-                accent="italiano_standard",
-                speed=payload.speed,
-                pitch=0,
-                volume=0.0,
-                confirmation_token=token,
-                progress_callback=None,
-            )
-            code = core.command_synthesize(synth_args)
-            if code != 0 or not out_path.exists():
-                raise RuntimeError("Sintesi XTTS remota non riuscita")
-
-            audio_b64 = base64.b64encode(out_path.read_bytes()).decode("ascii")
-            return {
-                "ok": "true",
-                "format": payload.format,
-                "audio_b64": audio_b64,
-            }
-        except HTTPException:
-            raise
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=str(exc))
-        finally:
-            core.PROFILES_DIR = old_profiles_dir
-            core.OUTPUT_DIR = old_output_dir
+@app.get("/jobs/{job_id}")
+def get_remote_job(job_id: str, x_remote_key: str | None = Header(default=None, alias="X-Remote-Key")) -> dict[str, Any]:
+    _check_key(x_remote_key)
+    with _remote_jobs_lock:
+        job = dict(_remote_jobs.get(job_id) or {})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job non trovato")
+    result: dict[str, Any] = {
+        "job_id": job["id"],
+        "status": job["status"],
+        "error": job.get("error", ""),
+    }
+    if job["status"] == "done":
+        result["audio_b64"] = job["audio_b64"]
+        result["format"] = job["format"]
+    return result
 
 
 if __name__ == "__main__":

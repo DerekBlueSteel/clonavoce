@@ -487,6 +487,14 @@ def _collect_profile_samples_for_remote(profile: str, max_samples: int = 3) -> l
     return payload_items
 
 
+def _remote_xtts_base_url() -> str:
+    """Restituisce la base URL del server XTTS remoto (senza /synthesize)."""
+    base = (REMOTE_XTTS_URL or "").rstrip()
+    if base.endswith("/synthesize"):
+        return base[: -len("/synthesize")]
+    return base.rstrip("/")
+
+
 def _try_remote_xtts(payload: SynthesizeRequest, output_path: Path) -> tuple[bool, str]:
     if not REMOTE_XTTS_URL:
         return False, "REMOTE_XTTS_URL non configurato"
@@ -508,8 +516,6 @@ def _try_remote_xtts(payload: SynthesizeRequest, output_path: Path) -> tuple[boo
         "format": payload.format,
         "samples": samples,
     }
-    # Keep sample-driven synthesis, but include profile for remote APIs that validate
-    # it as a required field even when samples are provided.
     logger.info(
         "Remote XTTS payload ready: build=%s profile=%s samples=%d format=%s text_len=%d",
         APP_BUILD,
@@ -526,47 +532,87 @@ def _try_remote_xtts(payload: SynthesizeRequest, output_path: Path) -> tuple[boo
     if REMOTE_XTTS_KEY:
         headers["X-Remote-Key"] = REMOTE_XTTS_KEY
 
+    # POST con timeout corto: il server async risponde <1s con job_id
+    # Il server legacy risponde con audio_b64 direttamente (compat. retroattiva)
     req = urllib.request.Request(REMOTE_XTTS_URL, data=body, headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=max(10, REMOTE_XTTS_TIMEOUT)) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:
             resp_body = resp.read().decode("utf-8", errors="replace")
-            payload_json = json.loads(resp_body)
+            resp_json = json.loads(resp_body)
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         return False, f"HTTP {exc.code}: {detail[:800]}"
     except Exception as exc:
         return False, str(exc)
 
-    audio_b64 = str(payload_json.get("audio_b64") or "").strip()
-    if not audio_b64:
-        return False, "Risposta remota senza audio_b64"
+    # --- Risposta legacy sincrona: audio_b64 direttamente ---
+    audio_b64 = str(resp_json.get("audio_b64") or "").strip()
+    if audio_b64:
+        try:
+            raw = base64.b64decode(audio_b64)
+        except Exception as exc:
+            return False, f"Base64 non valido: {exc}"
+        output_path.write_bytes(raw)
+        if not output_path.exists() or output_path.stat().st_size == 0:
+            return False, "Output remoto vuoto"
+        return True, "ok"
 
-    try:
-        raw = base64.b64decode(audio_b64)
-    except Exception as exc:
-        return False, f"Base64 non valido: {exc}"
-    output_path.write_bytes(raw)
-    if not output_path.exists() or output_path.stat().st_size == 0:
-        return False, "Output remoto vuoto"
-    return True, "ok"
+    # --- Risposta async: polling su /jobs/{job_id} ---
+    job_id = str(resp_json.get("job_id") or "").strip()
+    if not job_id:
+        return False, "Risposta remota senza audio_b64 né job_id"
+
+    base_url = _remote_xtts_base_url()
+    poll_url = f"{base_url}/jobs/{job_id}"
+    poll_headers: dict[str, str] = {"Accept": "application/json"}
+    if REMOTE_XTTS_KEY:
+        poll_headers["X-Remote-Key"] = REMOTE_XTTS_KEY
+
+    logger.info("Remote XTTS async job=%s, polling %s (timeout=%ds)", job_id, poll_url, REMOTE_XTTS_TIMEOUT)
+    deadline = time.time() + max(60, REMOTE_XTTS_TIMEOUT)
+    poll_interval = 4.0
+
+    while time.time() < deadline:
+        time.sleep(poll_interval)
+        try:
+            poll_req = urllib.request.Request(poll_url, headers=poll_headers, method="GET")
+            with urllib.request.urlopen(poll_req, timeout=15) as poll_resp:
+                poll_data = json.loads(poll_resp.read().decode("utf-8", errors="replace"))
+        except Exception as exc:
+            logger.debug("Poll remote job %s: %s", job_id, exc)
+            continue
+
+        status = str(poll_data.get("status") or "").lower()
+        if status in ("queued", "running"):
+            continue
+        if status == "done":
+            audio_b64 = str(poll_data.get("audio_b64") or "").strip()
+            if not audio_b64:
+                return False, "Job remoto done ma senza audio_b64"
+            try:
+                raw = base64.b64decode(audio_b64)
+            except Exception as exc:
+                return False, f"Base64 non valido: {exc}"
+            output_path.write_bytes(raw)
+            if not output_path.exists() or output_path.stat().st_size == 0:
+                return False, "Output remoto vuoto"
+            logger.info("Remote XTTS async job=%s completato", job_id)
+            return True, "ok"
+        # "failed" o stato sconosciuto
+        err = str(poll_data.get("error") or "errore remoto sconosciuto").strip()
+        return False, f"Job remoto fallito: {err}"
+
+    return False, f"Timeout polling job remoto dopo {REMOTE_XTTS_TIMEOUT}s"
 
 
 def _remote_xtts_health_url() -> str:
-    if not REMOTE_XTTS_URL:
-        return ""
-    base = REMOTE_XTTS_URL.rstrip()
-    if base.endswith("/synthesize"):
-        return base[: -len("/synthesize")] + "/health"
-    return base.rstrip("/") + "/health"
+    base = _remote_xtts_base_url()
+    return (base + "/health") if base else ""
 
 
 def _remote_xtts_profiles_export_url() -> str:
-    if not REMOTE_XTTS_URL:
-        return ""
-    base = REMOTE_XTTS_URL.rstrip()
-    if base.endswith("/synthesize"):
-        return base[: -len("/synthesize")] + "/profiles/export"
-    return base.rstrip("/") + "/profiles/export"
+    base = _remote_xtts_base_url()
+    return (base + "/profiles/export") if base else ""
 
 
 def _restore_profiles_from_pc(max_profiles: int, max_samples_per_profile: int, max_sample_mb: int) -> dict[str, Any]:

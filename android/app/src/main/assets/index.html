@@ -5,566 +5,629 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="ClonaVoce Mobile">
-    <title>ClonaVoce Mobile</title>
+    <meta name="apple-mobile-web-app-title" content="ClonaVoce">
+    <title>ClonaVoce</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        :root {
+            --accent: #6C63FF;
+            --accent-dark: #5248d6;
+            --accent-light: #ede9ff;
+            --bg: #f7f7fb;
+            --surface: #ffffff;
+            --border: #e8e8ee;
+            --text: #1a1a2e;
+            --text-subtle: #6b6b80;
+            --text-muted: #a0a0b0;
+            --danger: #e53935;
+            --warning-bg: #fff8e1;
+            --warning-fg: #6d4c00;
+            --success-bg: #e8f5e9;
+            --success-fg: #1b5e20;
+            --error-bg: #fce4ec;
+            --error-fg: #880e2f;
+            --info-bg: #e3f2fd;
+            --info-fg: #0d47a1;
+            --radius: 14px;
+            --radius-sm: 8px;
+            --nav-h: 60px;
+            --header-h: 56px;
+            --shadow: 0 2px 12px rgba(108,99,255,.10);
         }
-        
-        html, body {
-            height: 100%;
-            width: 100%;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #f5f5f5;
-            color: #333;
-        }
-        
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        html, body { height: 100%; width: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); font-size: 15px; }
         body {
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            display: flex; flex-direction: column; overflow: hidden;
             padding-top: max(0px, env(safe-area-inset-top));
             padding-bottom: max(0px, env(safe-area-inset-bottom));
             padding-left: max(0px, env(safe-area-inset-left));
             padding-right: max(0px, env(safe-area-inset-right));
         }
-        
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 16px 16px 8px 16px;
-            text-align: center;
+
+        /* ── Top bar ── */
+        .topbar {
+            height: var(--header-h);
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 20px;
             flex-shrink: 0;
-        }
-        
-        .header h1 {
-            font-size: 22px;
-            margin-bottom: 4px;
-        }
-        
-        .header-status {
-            font-size: 12px;
-            opacity: 0.9;
-        }
-        
-        .tabs-navigation {
-            display: flex;
-            gap: 0;
-            background: white;
-            border-bottom: 1px solid #ddd;
-            overflow-x: auto;
-            flex-shrink: 0;
-        }
-        
-        .tab-button {
-            flex: 1;
-            min-width: 80px;
-            padding: 12px 8px;
-            border: none;
-            background: white;
-            color: #666;
-            font-size: 12px;
-            font-weight: 500;
-            cursor: pointer;
-            border-bottom: 3px solid transparent;
-            transition: all 0.3s;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            overflow: hidden;
-        }
-        
-        .tab-button.active {
-            color: #667eea;
-            border-bottom-color: #667eea;
-        }
-        
-        .tab-button:active {
-            background: #f0f0f0;
-        }
-        
-        .main-content {
-            flex: 1;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        .tab-button:disabled {
-            opacity: 0.45;
-            cursor: not-allowed;
-        }
-        
-        .tab-content {
-            display: none;
-            padding: 16px;
-            animation: fadeIn 0.3s;
-        }
-        
-        .tab-content.active {
-            display: block;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        
-        .form-group {
-            margin-bottom: 16px;
-        }
-        
-        label {
-            display: block;
-            font-size: 13px;
-            font-weight: 500;
-            margin-bottom: 6px;
-            color: #333;
-        }
-        
-        input[type="text"],
-        input[type="password"],
-        textarea,
-        select {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 16px;
-            font-family: inherit;
-            background: white;
-            color: #333;
-        }
-        
-        input[type="text"]:focus,
-        input[type="password"]:focus,
-        textarea:focus,
-        select:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-        
-        textarea {
-            resize: vertical;
-            min-height: 80px;
-            font-family: 'Courier New', monospace;
-        }
-
-        #textToSynthesize {
-            resize: vertical;
-            min-height: 140px;
-        }
-
-            .synth-secondary-actions {
-                grid-template-columns: 1fr 1fr;
-            }
-
-            .synth-secondary-actions button:last-child {
-                grid-column: 1 / -1;
-            }
-
-            .phrase-library-list {
-                margin: 0;
-                padding-left: 24px;
-                display: grid;
-                gap: 8px;
-            }
-
-            .phrase-library-row {
-                margin: 0;
-            }
-
-            .phrase-library-item {
-                width: 100%;
-                text-align: left;
-                text-transform: none;
-                letter-spacing: 0;
-                background: white;
-                border: 1px solid #ddd;
-                color: #333;
-                padding: 10px 12px;
-                border-radius: 6px;
-            }
-
-            .phrase-library-item.selected {
-                border-color: #667eea;
-                background: #eef1ff;
-            }
-        
-        .button-group {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 16px;
-        }
-        
-        .button-group.full {
-            grid-template-columns: 1fr;
-        }
-        
-        button {
-            padding: 12px 16px;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .btn-primary {
-            background: #667eea;
-            color: white;
-        }
-        
-        .btn-primary:active {
-            background: #5568d3;
-            transform: scale(0.98);
-        }
-        
-        .btn-secondary {
-            background: #e0e0e0;
-            color: #333;
-        }
-        
-        .btn-secondary:active {
-            background: #d0d0d0;
-        }
-
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        
-        .btn-small {
-            padding: 8px 12px;
-            font-size: 12px;
-        }
-        
-        .profile-card {
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            margin-bottom: 12px;
-            overflow: hidden;
-        }
-
-        .profile-card.selected {
-            border-color: #667eea;
-            box-shadow: 0 0 0 1px rgba(102, 126, 234, 0.18);
-        }
-
-        .profile-card-summary {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 12px;
-            cursor: pointer;
-            list-style: none;
-        }
-
-        .profile-card-summary::-webkit-details-marker {
-            display: none;
-        }
-
-        .profile-card-summary-text {
-            min-width: 0;
-            flex: 1;
-        }
-
-        .profile-card-summary-side {
-            flex-shrink: 0;
-            font-size: 12px;
-            color: #667eea;
-            font-weight: 600;
-        }
-
-        .profile-card-content {
-            padding: 0 12px 12px;
-            border-top: 1px solid #eee;
-        }
-
-        .profile-card-meta {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 6px;
-        }
-
-        .profile-chip {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 999px;
-            background: #eef1ff;
-            color: #4a56b3;
-            font-size: 11px;
-            font-weight: 600;
-        }
-        
-        .profile-card-title {
-            font-weight: 600;
-            font-size: 14px;
-            margin-bottom: 4px;
-        }
-        
-        .profile-card-subtitle {
-            font-size: 12px;
-            color: #666;
-        }
-        
-        .job-item {
-            background: white;
-            border-left: 4px solid #667eea;
-            border-radius: 4px;
-            padding: 12px;
-            margin-bottom: 12px;
-        }
-        
-        .job-status {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-        
-        .job-status.queued {
-            background: #fff3cd;
-            color: #856404;
-        }
-        
-        .job-status.running {
-            background: #d1ecf1;
-            color: #0c5460;
-        }
-        
-        .job-status.done {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .job-status.error {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        
-        .message-box {
-            padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 16px;
-            font-size: 13px;
-        }
-        
-        .message-info {
-            background: #e3f2fd;
-            color: #1565c0;
-            border-left: 4px solid #1976d2;
-        }
-        
-        .message-error {
-            background: #ffebee;
-            color: #c62828;
-            border-left: 4px solid #d32f2f;
-        }
-        
-        .message-success {
-            background: #e8f5e9;
-            color: #2e7d32;
-            border-left: 4px solid #388e3c;
-        }
-        
-        .loading {
-            text-align: center;
-            padding: 24px;
-            color: #666;
-        }
-        
-        .spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #999;
-        }
-        
-        .empty-state-icon {
-            font-size: 32px;
-            margin-bottom: 12px;
-        }
-        
-        .settings-group {
-            background: white;
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 12px;
-        }
-        
-        .settings-group-title {
-            font-weight: 600;
-            font-size: 13px;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            color: #667eea;
-        }
-        
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 0;
-        }
-        
-        input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-        }
-        
-        .progress-bar {
-            width: 100%;
-            height: 4px;
-            background: #ddd;
-            border-radius: 2px;
-            overflow: hidden;
-            margin: 8px 0;
-        }
-        
-        .progress-bar-fill {
-            height: 100%;
-            background: #667eea;
-            transition: width 0.3s;
-        }
-        
-        .divider {
-            height: 1px;
-            background: #eee;
-            margin: 16px 0;
-        }
-        
-        .text-center {
-            text-align: center;
-        }
-        
-        .text-muted {
-            color: #999;
-            font-size: 12px;
-        }
-        .lang-autocomplete-wrapper {
             position: relative;
         }
-        .lang-autocomplete-wrapper input {
-            width: 100%; box-sizing: border-box;
+        .topbar-title { font-size: 18px; font-weight: 700; color: var(--accent); letter-spacing: -0.3px; }
+        .topbar-status {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 12px; color: var(--text-subtle); max-width: 58%; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap;
         }
+        .status-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted);
+            flex-shrink: 0; transition: background .4s;
+        }
+        .status-dot.online  { background: #43a047; }
+        .status-dot.offline { background: #e53935; }
+        .status-dot.warn    { background: #fb8c00; }
+
+        /* ── Bottom nav ── */
+        .bottom-nav {
+            height: var(--nav-h);
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            display: flex; flex-shrink: 0;
+        }
+        .nav-btn {
+            flex: 1; display: flex; flex-direction: column; align-items: center;
+            justify-content: center; gap: 3px;
+            border: none; background: none; color: var(--text-muted);
+            font-size: 10px; font-weight: 600; cursor: pointer;
+            transition: color .2s; padding: 6px 0;
+        }
+        .nav-btn .icon { font-size: 22px; line-height: 1; }
+        .nav-btn.active { color: var(--accent); }
+        .nav-btn:disabled { opacity: .35; pointer-events: none; }
+        /* mimic tab-button for JS compatibility */
+        .nav-btn[data-tab] { }
+
+        /* ── Scroll area ── */
+        .main-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+        /* ── Tab panes ── */
+        .tab-content { display: none; padding: 16px 16px 24px; }
+        .tab-content.active { display: block; }
+
+        /* ── Cards / sections ── */
+        .card {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+        .card-title {
+            font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: .8px; color: var(--accent); margin-bottom: 12px;
+        }
+
+        /* ── Inputs ── */
+        label { display: block; font-size: 12px; font-weight: 600; color: var(--text-subtle); margin-bottom: 5px; }
+        input[type="text"], input[type="password"], textarea, select {
+            width: 100%; padding: 11px 14px;
+            border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+            font-size: 15px; font-family: inherit;
+            background: var(--bg); color: var(--text);
+            transition: border-color .2s, box-shadow .2s;
+        }
+        input:focus, textarea:focus, select:focus {
+            outline: none; border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(108,99,255,.12);
+        }
+        textarea { resize: vertical; min-height: 80px; font-family: inherit; }
+        #textToSynthesize { min-height: 130px; font-size: 16px; line-height: 1.5; }
+        .form-group { margin-bottom: 14px; }
+        input[type="range"] { width: 100%; accent-color: var(--accent); }
+        input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+
+        /* ── Buttons ── */
+        button {
+            border: none; border-radius: var(--radius-sm);
+            font-size: 14px; font-weight: 700; cursor: pointer;
+            transition: background .18s, transform .1s, opacity .18s;
+            padding: 12px 16px; font-family: inherit;
+        }
+        button:active { transform: scale(.97); }
+        button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+        /* FAB — main action */
+        .btn-fab {
+            width: 100%; padding: 15px;
+            background: var(--accent); color: #fff;
+            font-size: 16px; border-radius: var(--radius);
+            letter-spacing: .2px;
+            box-shadow: 0 4px 18px rgba(108,99,255,.35);
+        }
+        .btn-fab:active { background: var(--accent-dark); }
+
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:active { background: var(--accent-dark); }
+
+        .btn-secondary { background: var(--bg); color: var(--text-subtle); border: 1.5px solid var(--border); }
+        .btn-secondary:active { background: var(--border); }
+
+        .btn-ghost { background: none; color: var(--accent); padding: 8px 12px; font-size: 13px; }
+
+        .btn-danger { background: var(--error-bg); color: var(--danger); }
+
+        .btn-small { padding: 7px 11px; font-size: 12px; }
+
+        .btn-row { display: flex; gap: 8px; margin-bottom: 10px; }
+        .btn-row > button { flex: 1; }
+        .btn-row.single > button { flex: none; width: 100%; }
+
+        /* ── Record button ── */
+        #holdRecordBtn {
+            width: 100%; padding: 18px;
+            background: var(--accent-light); color: var(--accent);
+            font-size: 15px; border-radius: var(--radius);
+            border: 2px solid var(--accent);
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        #holdRecordBtn.recording {
+            background: var(--error-bg); color: var(--danger);
+            border-color: var(--danger);
+            animation: pulse-rec 1.2s infinite;
+        }
+        @keyframes pulse-rec {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(229,57,53,.25); }
+            50% { box-shadow: 0 0 0 8px rgba(229,57,53,0); }
+        }
+
+        /* ── Pill chips ── */
+        .chip {
+            display: inline-flex; align-items: center;
+            padding: 4px 10px; border-radius: 99px;
+            font-size: 11px; font-weight: 700;
+            background: var(--accent-light); color: var(--accent);
+        }
+
+        /* ── Status messages ── */
+        .msg {
+            padding: 11px 14px; border-radius: var(--radius-sm);
+            font-size: 13px; margin-bottom: 10px; line-height: 1.4;
+        }
+        .msg-info    { background: var(--info-bg);    color: var(--info-fg);    border-left: 3px solid #1976d2; }
+        .msg-success { background: var(--success-bg); color: var(--success-fg); border-left: 3px solid #388e3c; }
+        .msg-error   { background: var(--error-bg);   color: var(--danger);     border-left: 3px solid var(--danger); }
+        .msg-warning { background: var(--warning-bg); color: var(--warning-fg); border-left: 3px solid #fb8c00; }
+        /* aliases kept for existing JS */
+        .message-box { padding: 11px 14px; border-radius: var(--radius-sm); font-size: 13px; margin-bottom: 10px; }
+        .message-info    { background: var(--info-bg);    color: var(--info-fg);    border-left: 3px solid #1976d2; }
+        .message-success { background: var(--success-bg); color: var(--success-fg); border-left: 3px solid #388e3c; }
+        .message-error   { background: var(--error-bg);   color: var(--danger);     border-left: 3px solid var(--danger); }
+        .message-warning { background: var(--warning-bg); color: var(--warning-fg); border-left: 3px solid #fb8c00; }
+
+        /* ── Progress bar ── */
+        .progress-bar { width: 100%; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin: 8px 0; }
+        .progress-bar-fill { height: 100%; background: var(--accent); transition: width .3s; border-radius: 2px; }
+
+        /* ── Spinner ── */
+        .spinner {
+            display: inline-block; width: 20px; height: 20px;
+            border: 3px solid var(--border); border-top-color: var(--accent);
+            border-radius: 50%; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .tab-content.active { animation: fadeIn .25s ease; }
+
+        /* ── Job cards ── */
+        .job-item {
+            background: var(--surface); border-radius: var(--radius);
+            padding: 14px; margin-bottom: 10px; box-shadow: var(--shadow);
+            border-left: 4px solid var(--accent);
+        }
+        .job-status {
+            display: inline-block; padding: 3px 9px; border-radius: 99px;
+            font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+        }
+        .job-status.queued  { background: var(--warning-bg); color: var(--warning-fg); }
+        .job-status.running { background: #e3f2fd; color: #0d47a1; }
+        .job-status.done    { background: var(--success-bg); color: var(--success-fg); }
+        .job-status.error, .job-status.failed { background: var(--error-bg); color: var(--danger); }
+
+        /* ── Pull refresh ── */
+        .pull-refresh-indicator {
+            display: none; text-align: center;
+            color: var(--accent); font-size: 12px; font-weight: 700;
+            padding: 6px 0 2px; opacity: 0;
+            transform: translateY(-8px);
+            transition: opacity .15s, transform .15s;
+        }
+        .pull-refresh-indicator.visible { display: block; opacity: 1; transform: translateY(0); }
+
+        /* ── Profile cards ── */
+        .profile-card {
+            background: var(--surface); border: 1.5px solid var(--border);
+            border-radius: var(--radius); margin-bottom: 10px; overflow: hidden;
+        }
+        .profile-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(108,99,255,.15); }
+        .profile-card-summary {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; padding: 13px 14px; cursor: pointer; list-style: none;
+        }
+        .profile-card-summary::-webkit-details-marker { display: none; }
+        .profile-card-summary-text { min-width: 0; flex: 1; }
+        .profile-card-summary-side { flex-shrink: 0; font-size: 12px; color: var(--accent); font-weight: 700; }
+        .profile-card-content { padding: 0 14px 14px; border-top: 1px solid var(--border); }
+        .profile-card-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+        .profile-chip { display: inline-block; padding: 3px 8px; border-radius: 99px; background: var(--accent-light); color: var(--accent); font-size: 10px; font-weight: 700; }
+        .profile-card-title { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+        .profile-card-subtitle { font-size: 12px; color: var(--text-subtle); }
+
+        /* ── Phrase library ── */
+        .phrase-library-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+        .phrase-library-item {
+            width: 100%; text-align: left; text-transform: none; letter-spacing: 0;
+            background: var(--bg); border: 1.5px solid var(--border); color: var(--text);
+            padding: 10px 13px; border-radius: var(--radius-sm); font-weight: 500;
+        }
+        .phrase-library-item.selected { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+
+        /* ── Misc ── */
+        .text-muted { color: var(--text-muted); font-size: 12px; }
+        .text-subtle { color: var(--text-subtle); font-size: 13px; }
+        .divider { height: 1px; background: var(--border); margin: 14px 0; }
+        .empty-state { text-align: center; padding: 40px 20px; color: var(--text-muted); }
+        .empty-state-icon { font-size: 36px; margin-bottom: 12px; }
+        .checkbox-group { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+
+        /* Lang autocomplete */
+        .lang-autocomplete-wrapper { position: relative; }
+        .lang-autocomplete-wrapper input { width: 100%; }
         .lang-autocomplete-dropdown {
             position: absolute; z-index: 999; left: 0; right: 0;
-            background: #fff; border: 1px solid #ddd; border-radius: 6px;
-            max-height: 200px; overflow-y: auto;
-            box-shadow: 0 4px 12px rgba(0,0,0,.12);
-            display: none;
+            background: var(--surface); border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm); max-height: 200px; overflow-y: auto;
+            box-shadow: 0 6px 20px rgba(0,0,0,.12); display: none;
         }
         .lang-autocomplete-dropdown.open { display: block; }
-        .lang-ac-item {
-            padding: 10px 12px; cursor: pointer; font-size: 14px;
-            border-bottom: 1px solid #f0f0f0;
-        }
+        .lang-ac-item { padding: 11px 13px; cursor: pointer; font-size: 14px; border-bottom: 1px solid var(--border); }
         .lang-ac-item:last-child { border-bottom: none; }
-        .lang-ac-item:hover, .lang-ac-item.selected { background: #667eea22; }
+        .lang-ac-item:hover, .lang-ac-item.selected { background: var(--accent-light); }
         .translate-btn-row { display: flex; gap: 8px; margin-top: 6px; align-items: center; }
-        .translate-status { font-size: 12px; color: #888; flex: 1; }
+        .translate-status { font-size: 12px; color: var(--text-muted); flex: 1; }
 
-        .pull-refresh-indicator {
-            display: none;
-            text-align: center;
-            color: #667eea;
-            font-size: 12px;
-            font-weight: 600;
-            padding: 6px 0 2px;
-            opacity: 0;
-            transform: translateY(-8px);
-            transition: opacity 0.15s ease, transform 0.15s ease;
-        }
-        .pull-refresh-indicator.visible {
-            display: block;
-            opacity: 1;
-            transform: translateY(0);
-        }
+        /* aliases kept for JS */
+        .settings-group { background: var(--surface); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow); }
+        .settings-group-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--accent); margin-bottom: 12px; }
+        .button-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+        .button-group.full { grid-template-columns: 1fr; }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:active { background: var(--accent-dark); }
+        .btn-secondary { background: var(--bg); color: var(--text-subtle); border: 1.5px solid var(--border); }
+        .synth-secondary-actions { grid-template-columns: 1fr 1fr; }
+        .synth-secondary-actions button:last-child { grid-column: 1/-1; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>ClonaVoce Mobile</h1>
-        <div class="header-status" id="statusText">Connessione non verificata</div>
-    </div>
-    
-    <div class="tabs-navigation">
-        <button class="tab-button active" data-tab="synthesize">🎤 Sintesi</button>
-        <button class="tab-button" data-tab="jobs">📋 Job</button>
-        <button class="tab-button" data-tab="profiles">👤 Profili</button>
-        <button class="tab-button" data-tab="phrases">📚 Frasi</button>
-        <button class="tab-button" data-tab="settings">⚙ Impostazioni</button>
-    </div>
-    
-    <div class="main-content">
-        <!-- SETTINGS TAB -->
-        <div class="tab-content" id="settings">
-            <div class="settings-group">
-                <div class="settings-group-title">Connessione API</div>
-                <div class="form-group">
-                    <label>Base URL</label>
-                    <input type="text" id="apiBaseUrl" placeholder="https://clonavoce.onrender.com" value="https://clonavoce.onrender.com">
-                </div>
-                <div class="form-group">
-                    <label>API Key</label>
-                    <input type="password" id="apiKey" placeholder="Inserisci API key">
-                </div>
-                <div class="button-group full">
-                    <button class="btn-primary" onclick="testConnection()">Test connessione</button>
-                </div>
-                <div id="settingsMessage"></div>
-            </div>
 
-            <div class="settings-group">
-                <div class="settings-group-title">Backup locale</div>
-                <div class="text-muted" style="margin-bottom: 10px;">Salva e ripristina API key, token profili e cache profili in un file JSON sul telefono.</div>
-                <input
-                    type="file"
-                    id="settingsBackupFilePicker"
-                    accept="application/json,.json"
-                    style="display: none;"
-                    onchange="importLocalBackupFromPicker(event)"
-                >
-                <div class="button-group">
-                    <button class="btn-secondary" onclick="exportLocalBackupToFile()">Esporta backup</button>
-                    <button class="btn-secondary" onclick="triggerLocalBackupImport()">Importa backup</button>
-                </div>
-                <div class="button-group full" style="margin-top: 8px;">
-                    <button class="btn-secondary" onclick="restoreLastAutoBackup()">Ripristina ultimo auto-backup</button>
-                </div>
-                <div class="text-muted" id="autoBackupStatusText" style="margin-top: 6px;">Auto-backup: in attesa</div>
-                <div id="settingsBackupMessage"></div>
+<!-- ── Top bar ── -->
+<div class="topbar">
+    <span class="topbar-title">🎙 ClonaVoce</span>
+    <span class="topbar-status">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Connessione...</span>
+    </span>
+</div>
+
+<!-- ── Scrollable main content ── -->
+<div class="main-content">
+
+    <!-- ══ SINTESI ══ -->
+    <div class="tab-content active" id="synthesize">
+        <!-- Profile + quick params row -->
+        <div class="card">
+            <div class="form-group" style="margin-bottom:10px;">
+                <label>Voce</label>
+                <select id="synthProfile" onchange="syncProfileFromSynthesis()">
+                    <option value="">— seleziona profilo —</option>
+                </select>
             </div>
-            
-            <div class="settings-group">
-                <div class="settings-group-title">Opzioni audio</div>
+            <div id="synthProfileWarning" class="message-box message-error" style="display:none;margin-bottom:10px;"></div>
+            <!-- Quick params: lingua + traduzione inline -->
+            <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+                <div style="flex:1;min-width:120px;">
+                    <label>Lingua</label>
+                    <div class="lang-autocomplete-wrapper" id="langWrap_synthLanguage">
+                        <input type="text" id="synthLanguage_label" placeholder="Italiano" autocomplete="off"
+                            oninput="langAcFilter('synthLanguage')" onfocus="langAcFilter('synthLanguage')" onblur="langAcBlur('synthLanguage')" value="Italiano">
+                        <input type="hidden" id="synthLanguage" value="it">
+                        <div class="lang-autocomplete-dropdown" id="langDrop_synthLanguage"></div>
+                    </div>
+                </div>
+                <div style="flex:0 0 auto;display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+                    <button class="btn-secondary btn-small" onclick="translateSynthText()">🌐 Traduci</button>
+                    <span class="translate-status" id="translateStatus" style="font-size:11px;"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Text area -->
+        <div class="card" style="padding-bottom:8px;">
+            <textarea id="textToSynthesize" placeholder="Scrivi il testo da sintetizzare…"></textarea>
+            <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
+                <button class="btn-ghost btn-small" onclick="clearSynthesisText()">✕ Pulisci</button>
+                <button class="btn-ghost btn-small" onclick="insertSelectedPhraseIntoSynthesisText()">📚 Frase</button>
+            </div>
+        </div>
+
+        <!-- Generate FAB -->
+        <button class="btn-fab" id="synthGenerateBtn" onclick="synthesizeAudio()" style="margin-bottom:10px;">
+            ▶ Genera audio
+        </button>
+
+        <!-- Progress -->
+        <div id="synthProgress" style="display:none;margin-bottom:12px;" class="card">
+            <div class="progress-bar"><div class="progress-bar-fill" id="synthProgressBar" style="width:0%"></div></div>
+            <div class="text-muted" id="synthProgressText" style="margin-top:4px;">In elaborazione…</div>
+        </div>
+
+        <!-- Result -->
+        <div class="card" id="synthResultCard" style="display:none;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span class="chip">✓ Pronto</span>
+                <span class="text-muted" id="generatedAudioMeta"></span>
+            </div>
+            <audio id="generatedAudioPlayer" controls preload="none" style="width:100%;"></audio>
+            <div class="btn-row" style="margin-top:10px;">
+                <button class="btn-secondary btn-small" id="shareGeneratedAudioWhatsappButton" onclick="shareGeneratedAudioToWhatsApp()" disabled>💬 WhatsApp</button>
+                <button class="btn-secondary btn-small" id="shareGeneratedAudioButton" onclick="shareGeneratedAudio()" disabled>⬆ Condividi</button>
+                <button class="btn-secondary btn-small" onclick="saveGeneratedAudio()">⬇ Salva</button>
+            </div>
+        </div>
+
+        <!-- Multiple results container -->
+        <div id="synthResultsMultipleContainer" style="display:none;margin-bottom:12px;">
+            <div class="card">
+                <div class="card-title">Risultati multipli</div>
+                <div id="synthResultsList"></div>
+            </div>
+        </div>
+
+        <!-- Queue -->
+        <div class="card">
+            <div class="card-title">Coda sintesi</div>
+            <div class="btn-row">
+                <button class="btn-secondary btn-small" id="queueAddBtn" onclick="enqueueCurrentSynthesis()">+ Aggiungi</button>
+                <button class="btn-secondary btn-small" id="queueStartBtn" onclick="startSynthesisQueue()">▶ Avvia</button>
+                <button class="btn-secondary btn-small" id="queueClearBtn" onclick="clearSynthesisQueue()">✕ Svuota</button>
+            </div>
+            <div class="text-muted" id="queueStatusText">Coda vuota.</div>
+        </div>
+
+        <!-- Advanced params (collapsed) -->
+        <details class="card" style="padding:0;">
+            <summary style="padding:14px 16px;font-size:12px;font-weight:700;color:var(--text-subtle);cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;">
+                <span>⚙ Parametri avanzati</span><span style="font-size:16px;color:var(--accent);">›</span>
+            </summary>
+            <div style="padding:0 16px 16px;">
+                <div class="text-muted" style="margin-bottom:10px;">Sovrascrivono i default del profilo solo per questa sintesi.</div>
+                <div class="btn-row single"><button class="btn-secondary btn-small" onclick="copySynthesisParamsFromSettings()">Copia da Impostazioni</button></div>
+                <div class="form-group">
+                    <label>Motore</label>
+                    <select id="synthEngine">
+                        <option value="auto">Auto</option>
+                        <option value="pyttsx3">pyttsx3</option>
+                        <option value="xtts">xtts</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Umore</label>
+                    <select id="synthMood">
+                        <option value="neutro">Neutro</option>
+                        <option value="felice">Felice</option>
+                        <option value="triste">Triste</option>
+                        <option value="arrabbiato">Arrabbiato</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Preset</label>
+                    <select id="synthPreset">
+                        <option value="professionale">Professionale</option>
+                        <option value="casual">Casual</option>
+                        <option value="energico">Energico</option>
+                        <option value="calmo">Calmo</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Accento</label>
+                    <select id="synthAccent">
+                        <option value="italiano_standard">Italiano standard</option>
+                        <option value="napoletano">Napoletano</option>
+                        <option value="siciliano">Siciliano</option>
+                        <option value="romana">Romana</option>
+                        <option value="toscana">Toscana</option>
+                        <option value="lombarda">Lombarda</option>
+                        <option value="english_uk">English UK</option>
+                        <option value="english_us">English US</option>
+                        <option value="english_irish">English Irish</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Velocità <span id="synthSpeedValue" class="text-muted">1.0x</span></label>
+                    <input type="range" id="synthSpeed" min="0.5" max="2.0" step="0.1" value="1.0">
+                </div>
+                <div class="form-group">
+                    <label>Pitch <span id="synthPitchValue" class="text-muted">0 st</span></label>
+                    <input type="range" id="synthPitch" min="-24" max="24" step="1" value="0">
+                </div>
+                <div class="form-group">
+                    <label>Volume <span id="synthVolumeValue" class="text-muted">0.0 dB</span></label>
+                    <input type="range" id="synthVolume" min="-24" max="24" step="0.5" value="0">
+                </div>
+                <div class="form-group">
+                    <label>Formato</label>
+                    <select id="format">
+                        <option value="mp3" selected>MP3</option>
+                        <option value="wav">WAV</option>
+                    </select>
+                </div>
+            </div>
+        </details>
+
+        <!-- Phrase library mini -->
+        <div class="card">
+            <div class="card-title">Libreria frasi</div>
+            <div class="btn-row">
+                <button class="btn-secondary btn-small" onclick="saveCurrentTextAsPhrase()">💾 Salva</button>
+                <button class="btn-secondary btn-small" onclick="insertSelectedPhraseIntoSynthesisText()">↑ Porta nel testo</button>
+                <button class="btn-secondary btn-small" onclick="deleteSelectedPhrase()">✕</button>
+            </div>
+            <div class="form-group" style="margin-bottom:6px;">
+                <input type="text" id="phraseTitleInput" placeholder="Nome frase (opzionale)">
+            </div>
+            <ol id="phraseLibraryList" class="phrase-library-list" style="margin-top:6px;"></ol>
+            <div class="text-muted" id="phraseLibraryPreview" style="white-space:pre-wrap;margin-top:8px;">Nessuna frase selezionata.</div>
+            <button class="btn-ghost btn-small" style="margin-top:6px;" onclick="addDefaultFamousPhrases()">+ Frasi celebri</button>
+        </div>
+
+        <div id="synthMessage"></div>
+    </div><!-- /synthesize -->
+
+
+    <!-- ══ JOB ══ -->
+    <div class="tab-content" id="jobs">
+        <div class="pull-refresh-indicator" id="jobsPullRefreshIndicator">Scorri giù per aggiornare</div>
+        <div class="btn-row single" style="margin-bottom:12px;">
+            <button class="btn-secondary btn-small" id="deleteAllJobsBtn" onclick="deleteAllJobs()">🗑 Elimina tutti</button>
+        </div>
+        <div id="jobsMessage"></div>
+        <div id="jobsContainer"></div>
+    </div>
+
+
+    <!-- ══ PROFILI ══ -->
+    <div class="tab-content" id="profiles">
+        <input type="hidden" id="profileToken">
+
+        <!-- Select active profile -->
+        <div class="card">
+            <div class="card-title">Profilo attivo</div>
+            <div class="form-group" style="margin-bottom:10px;">
+                <select id="profileSelect" onchange="onProfileChanged()">
+                    <option value="">— seleziona —</option>
+                </select>
+            </div>
+            <div class="btn-row">
+                <button class="btn-primary btn-small" onclick="refreshProfiles()">↻ Aggiorna</button>
+                <button class="btn-secondary btn-small" onclick="renameSelectedProfile()">✏ Rinomina</button>
+            </div>
+        </div>
+
+        <!-- Record sample -->
+        <div class="card">
+            <div class="card-title">Registra sample vocale</div>
+            <button id="holdRecordBtn" onclick="toggleRecordingButton(event)">
+                🎤 Premi per registrare
+            </button>
+            <div class="text-muted" id="recordStatus" style="margin-top:8px;">Premi per iniziare, di nuovo per fermare.</div>
+            <div id="uploadProgress" style="display:none;margin-top:10px;">
+                <div class="progress-bar"><div class="progress-bar-fill" id="uploadProgressBar" style="width:0%;"></div></div>
+                <div class="text-muted" id="uploadProgressPhaseText" style="margin-top:4px;font-size:0.82em;"></div>
+            </div>
+            <div class="text-muted" id="uploadStatusText" style="margin-top:6px;">In attesa di upload.</div>
+            <div style="margin-top:12px;">
+                <label style="margin-bottom:4px;">Anteprima registrazione</label>
+                <audio id="originalPreview" controls style="width:100%;"></audio>
+            </div>
+            <div class="btn-row" style="margin-top:10px;">
+                <button class="btn-primary btn-small" id="uploadCompareBtn" onclick="uploadRecordedSampleAndCompare()">⬆ Carica e confronta</button>
+                <button class="btn-secondary btn-small" onclick="clearRecordedSample()">✕ Annulla</button>
+            </div>
+            <div style="margin-top:12px;" id="transcriptionBlock">
+                <label style="margin-bottom:4px;">Testo estratto</label>
+                <textarea id="transcriptionOutput" readonly placeholder="Trascrizione automatica…" style="min-height:60px;"></textarea>
+                <label style="margin-top:10px;margin-bottom:4px;">Voce AI</label>
+                <audio id="aiPreview" controls style="width:100%;"></audio>
+            </div>
+        </div>
+
+        <!-- Upload sample from file -->
+        <div class="card">
+            <div class="card-title">Carica sample da file</div>
+            <input type="file" id="sampleFilePicker"
+                accept="audio/*,.wav,.ogg,.mp3,.m4a,.aac,.flac,.wma,.opus,.webm,.mp4,.mkv,.mov,.3gp"
+                style="display:none;" onchange="uploadSampleFromPicker(event)">
+            <button class="btn-secondary" style="width:100%;" onclick="triggerSamplePicker()">📂 Scegli file audio</button>
+            <div class="text-muted" style="margin-top:6px;">Aggiunge il file al profilo selezionato.</div>
+        </div>
+
+        <!-- Create new profile -->
+        <div class="card">
+            <div class="card-title">Crea nuovo profilo</div>
+            <div class="form-group">
+                <input type="text" id="newProfileName" placeholder="Nome visualizzato (es. La mia voce)">
+            </div>
+            <button class="btn-primary" style="width:100%;" onclick="createProfile()">+ Crea profilo</button>
+        </div>
+
+        <div id="profilesContainer"></div>
+    </div><!-- /profiles -->
+
+
+    <!-- ══ FRASI ══ -->
+    <div class="tab-content" id="phrases">
+        <div class="card">
+            <div class="card-title">Importa frasi</div>
+            <div class="form-group">
+                <label>Incolla separate da | (pipe)</label>
+                <textarea id="phrasesPasteArea" placeholder="Frase 1 | Frase 2 | Frase 3 | …"></textarea>
+            </div>
+            <div class="btn-row">
+                <button class="btn-primary btn-small" onclick="loadPhrasesFromPaste()">✓ Carica</button>
+                <button class="btn-secondary btn-small" onclick="document.getElementById('phrasesPasteArea').value=''">✕ Cancella</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Gestione frasi</div>
+            <select id="phrasesManagementList" size="8" style="width:100%;" multiple></select>
+            <div style="display:flex;gap:8px;margin-top:8px;align-items:center;">
+                <button class="btn-secondary btn-small" id="phrasesNavPrevBtn" onclick="navigateSelectedPhrases(-1)" style="flex:1;display:none;">◀ Prec</button>
+                <div class="text-muted" id="phrasesNavStatus" style="text-align:center;min-width:36px;display:none;">1/1</div>
+                <button class="btn-secondary btn-small" id="phrasesNavNextBtn" onclick="navigateSelectedPhrases(1)" style="flex:1;display:none;">Succ ▶</button>
+            </div>
+            <div class="text-muted" id="phrasesManagementPreview" style="white-space:pre-wrap;border:1px solid var(--border);padding:8px;margin-top:8px;min-height:50px;background:var(--bg);border-radius:var(--radius-sm);">Seleziona frasi per vederle qui.</div>
+            <div class="btn-row" style="margin-top:10px;">
+                <button class="btn-secondary btn-small" onclick="sortPhrasesAlphabetically()">A-Z</button>
+                <button class="btn-danger btn-small" onclick="deleteSelectedPhrasesFromManagement()">🗑 Elimina</button>
+            </div>
+            <div id="phrasesManagementMessage" class="text-muted" style="margin-top:8px;"></div>
+        </div>
+    </div><!-- /phrases -->
+
+
+    <!-- ══ IMPOSTAZIONI ══ -->
+    <div class="tab-content" id="settings">
+        <!-- Connection -->
+        <div class="card">
+            <div class="card-title">Connessione API</div>
+            <div class="form-group">
+                <label>Base URL</label>
+                <input type="text" id="apiBaseUrl" placeholder="https://clonavoce.onrender.com" value="https://clonavoce.onrender.com">
+            </div>
+            <div class="form-group">
+                <label>API Key</label>
+                <input type="password" id="apiKey" placeholder="Inserisci API key…">
+            </div>
+            <button class="btn-primary" style="width:100%;" onclick="testConnection()">Test connessione</button>
+            <div id="settingsMessage" style="margin-top:8px;"></div>
+        </div>
+
+        <!-- Default audio options -->
+        <details class="card" style="padding:0;">
+            <summary style="padding:14px 16px;font-size:12px;font-weight:700;color:var(--text-subtle);cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;">
+                <span>🔊 Opzioni audio default</span><span style="font-size:16px;color:var(--accent);">›</span>
+            </summary>
+            <div style="padding:0 16px 16px;">
                 <div class="form-group">
                     <label>Motore</label>
                     <select id="engine">
@@ -592,11 +655,6 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Velocità</label>
-                    <input type="range" id="speed" min="0.5" max="2.0" step="0.1" value="1.0" style="width: 100%;">
-                    <div class="text-muted" id="speedValue">1.0x</div>
-                </div>
-                <div class="form-group">
                     <label>Preset</label>
                     <select id="preset">
                         <option value="professionale">Professionale</option>
@@ -606,7 +664,7 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Accento / inflessione</label>
+                    <label>Accento</label>
                     <select id="accent">
                         <option value="italiano_standard">Italiano standard</option>
                         <option value="napoletano">Napoletano</option>
@@ -620,323 +678,76 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Pitch</label>
-                    <input type="range" id="pitch" min="-24" max="24" step="1" value="0" style="width: 100%;">
-                    <div class="text-muted" id="pitchValue">0 st</div>
+                    <label>Velocità <span id="speedValue" class="text-muted">1.0x</span></label>
+                    <input type="range" id="speed" min="0.5" max="2.0" step="0.1" value="1.0">
                 </div>
                 <div class="form-group">
-                    <label>Volume</label>
-                    <input type="range" id="volume" min="-24" max="24" step="0.5" value="0" style="width: 100%;">
-                    <div class="text-muted" id="volumeValue">0.0 dB</div>
+                    <label>Pitch <span id="pitchValue" class="text-muted">0 st</span></label>
+                    <input type="range" id="pitch" min="-24" max="24" step="1" value="0">
                 </div>
-            </div>
-
-            <div class="settings-group">
-                <div class="settings-group-title">Debug log</div>
-                <div class="text-muted" style="margin-bottom: 8px;">Log dettagliato locale (eventi UI/API/microfono), utile per supporto.</div>
-                <div class="button-group">
-                    <button class="btn-secondary" onclick="refreshDebugLogView()">Aggiorna log</button>
-                    <button class="btn-secondary" onclick="copyDebugLog()">Copia log</button>
-                </div>
-                <div class="button-group">
-                    <button class="btn-secondary" onclick="saveDebugLogToFile()">Salva log .txt</button>
-                    <button class="btn-secondary" onclick="clearDebugLog()">Svuota log</button>
-                </div>
-                <div class="form-group" style="margin-top: 8px; margin-bottom: 0;">
-                    <label>Anteprima log</label>
-                    <textarea id="debugLogOutput" readonly style="min-height: 180px; font-size: 12px;" placeholder="Il log comparira qui"></textarea>
-                </div>
-            </div>
-            
-            <div class="text-center text-muted">
-                <p>ClonaVoce Mobile v1.2</p>
-                <p>App mobile ottimizzata per smartphone</p>
-            </div>
-        </div>
-        
-        <!-- PROFILES TAB -->
-        <div class="tab-content" id="profiles">
-            <input type="hidden" id="profileToken">
-            <div class="settings-group">
-                <div class="settings-group-title">Crea nuovo profilo</div>
                 <div class="form-group">
-                    <label>Nome visualizzato</label>
-                    <input type="text" id="newProfileName" placeholder="es. La mia voce">
-                </div>
-                <button class="btn-primary" style="width: 100%;" onclick="createProfile()">Crea profilo</button>
-            </div>
-
-            <div class="settings-group">
-                <div class="settings-group-title">Sample stile WhatsApp</div>
-                <button
-                    class="btn-primary"
-                    id="holdRecordBtn"
-                    style="width: 100%;"
-                    onclick="toggleRecordingButton(event)"
-                >
-                    Premi per registrare
-                </button>
-                <div class="text-muted" id="recordStatus" style="margin-top: 8px;">Premi una volta per iniziare, premi di nuovo per fermare e salvare.</div>
-
-                <div class="form-group" style="margin-top: 12px;">
-                    <label>Audio originale registrato</label>
-                    <audio id="originalPreview" controls style="width: 100%;"></audio>
-                </div>
-
-                <div class="button-group">
-                    <button class="btn-secondary" id="uploadCompareBtn" onclick="uploadRecordedSampleAndCompare()">Carica sample e confronta</button>
-                    <button class="btn-secondary" onclick="clearRecordedSample()">Annulla registrazione</button>
-                </div>
-                <div class="text-muted" id="uploadStatusText" style="margin-top: 8px;">In attesa di upload.</div>
-
-                <div class="form-group" style="margin-top: 10px;">
-                    <label>Testo estratto dal sample</label>
-                    <textarea id="transcriptionOutput" readonly placeholder="La trascrizione automatica comparira qui"></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label>Voce AI sullo stesso testo</label>
-                    <audio id="aiPreview" controls style="width: 100%;"></audio>
+                    <label>Volume <span id="volumeValue" class="text-muted">0.0 dB</span></label>
+                    <input type="range" id="volume" min="-24" max="24" step="0.5" value="0">
                 </div>
             </div>
+        </details>
 
-            <div class="settings-group">
-                <div class="settings-group-title">Aggiungi sample audio</div>
-                <input
-                    type="file"
-                    id="sampleFilePicker"
-                    accept="audio/*,.wav,.ogg,.mp3,.m4a,.aac,.flac,.wma,.opus,.webm,.mp4,.mkv,.mov,.3gp"
-                    style="display: none;"
-                    onchange="uploadSampleFromPicker(event)"
-                >
-                <button class="btn-secondary" style="width: 100%;" onclick="triggerSamplePicker()">Seleziona e carica sample audio</button>
-                <div class="text-muted" style="margin-top: 8px;">Scegli un file audio dal dispositivo per aggiungerlo al profilo selezionato.</div>
+        <!-- Backup -->
+        <div class="card">
+            <div class="card-title">Backup locale</div>
+            <input type="file" id="settingsBackupFilePicker" accept="application/json,.json"
+                style="display:none;" onchange="importLocalBackupFromPicker(event)">
+            <div class="btn-row">
+                <button class="btn-secondary btn-small" onclick="exportLocalBackupToFile()">⬇ Esporta</button>
+                <button class="btn-secondary btn-small" onclick="triggerLocalBackupImport()">⬆ Importa</button>
             </div>
-
-            <div class="divider"></div>
-
-            <div class="settings-group">
-                <div class="settings-group-title">Profili salvati</div>
-                <div class="text-muted" style="margin-bottom: 12px;">I token vengono salvati in automatico sul dispositivo quando crei un profilo.</div>
-                <div class="form-group">
-                    <label>Seleziona profilo</label>
-                    <select id="profileSelect" onchange="onProfileChanged()">
-                        <option value="">-- Carica profili --</option>
-                    </select>
-                </div>
-                <div class="button-group" style="margin-bottom: 0;">
-                    <button class="btn-primary" onclick="refreshProfiles()">Aggiorna profili</button>
-                    <button class="btn-secondary" onclick="renameSelectedProfile()">Rinomina selezionato</button>
-                </div>
+            <div class="btn-row single" style="margin-top:4px;">
+                <button class="btn-secondary btn-small" onclick="restoreLastAutoBackup()">↺ Ripristina auto-backup</button>
             </div>
-
-            <div id="profilesContainer"></div>
+            <div class="text-muted" id="autoBackupStatusText" style="margin-top:6px;">Auto-backup: in attesa</div>
+            <div id="settingsBackupMessage" style="margin-top:6px;"></div>
         </div>
 
-        <!-- PHRASES TAB -->
-        <div class="tab-content" id="phrases">
-            <div class="settings-group">
-                <div class="settings-group-title">Carica frasi da testo</div>
-                <div class="form-group">
-                    <label>Incolla frasi separate da | (pipe)</label>
-                    <textarea id="phrasesPasteArea" placeholder="Frase 1 | Frase 2 | Frase 3 | ..."></textarea>
+        <!-- Debug log (collapsed) -->
+        <details class="card" style="padding:0;">
+            <summary style="padding:14px 16px;font-size:12px;font-weight:700;color:var(--text-subtle);cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;">
+                <span>🐞 Debug log</span><span style="font-size:16px;color:var(--accent);">›</span>
+            </summary>
+            <div style="padding:0 16px 16px;">
+                <div class="btn-row">
+                    <button class="btn-secondary btn-small" onclick="refreshDebugLogView()">↻ Aggiorna</button>
+                    <button class="btn-secondary btn-small" onclick="copyDebugLog()">📋 Copia</button>
+                    <button class="btn-secondary btn-small" onclick="saveDebugLogToFile()">⬇ Salva</button>
+                    <button class="btn-secondary btn-small" onclick="clearDebugLog()">✕ Svuota</button>
                 </div>
-                <div class="button-group">
-                    <button class="btn-primary" onclick="loadPhrasesFromPaste()">Carica e organizza</button>
-                    <button class="btn-secondary" onclick="document.getElementById('phrasesPasteArea').value = ''">Cancella</button>
-                </div>
+                <textarea id="debugLogOutput" readonly style="min-height:160px;font-size:11px;font-family:monospace;" placeholder="Il log comparirà qui…"></textarea>
             </div>
+        </details>
 
-            <div class="settings-group">
-                <div class="settings-group-title">Gestione frasi</div>
-                <div class="form-group">
-                    <label>Frasi disponibili (selezione multipla)</label>
-                    <select id="phrasesManagementList" size="8" style="width: 100%;" multiple></select>
-                </div>
-                <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center;">
-                    <button class="btn-secondary" id="phrasesNavPrevBtn" onclick="navigateSelectedPhrases(-1)" style="flex: 1; display: none;">⬅ Prec</button>
-                    <div class="text-muted" id="phrasesNavStatus" style="text-align: center; min-width: 40px; display: none;">1/1</div>
-                    <button class="btn-secondary" id="phrasesNavNextBtn" onclick="navigateSelectedPhrases(1)" style="flex: 1; display: none;">Succ ➡</button>
-                </div>
-                <div class="text-muted" id="phrasesManagementPreview" style="white-space: pre-wrap; border: 1px solid #ccc; padding: 8px; margin-top: 8px; min-height: 60px; background: #f9f9f9; border-radius: 4px;">Seleziona frasi dalla lista per vederle qui.</div>
-                <div class="button-group" style="margin-top: 12px;">
-                    <button class="btn-secondary" onclick="sortPhrasesAlphabetically()">Ordina A-Z</button>
-                    <button class="btn-danger" onclick="deleteSelectedPhrasesFromManagement()" style="flex: 1; background-color: #dc3545; color: white;">Elimina selezionate</button>
-                </div>
-                <div id="phrasesManagementMessage" class="text-muted" style="margin-top: 12px;">Seleziona una o più frasi, naviga con Prec/Succ per editarle, poi clicca Genera audio nel tab Sintesi.</div>
-            </div>
-        </div>
+        <div class="text-muted" style="text-align:center;padding:12px 0 4px;">ClonaVoce Mobile v1.3</div>
+    </div><!-- /settings -->
 
-        <!-- SYNTHESIZE TAB -->
-        <div class="tab-content active" id="synthesize">
-            <div class="form-group">
-                <label>Profilo</label>
-                <select id="synthProfile" onchange="syncProfileFromSynthesis()">
-                    <option value="">-- Seleziona profilo --</option>
-                </select>
-            </div>
+</div><!-- /main-content -->
 
-            <div class="text-muted" style="margin-bottom: 12px;">Token letto automaticamente dai token salvati nel tab Profili.</div>
+<!-- ── Bottom navigation ── -->
+<nav class="bottom-nav">
+    <button class="nav-btn tab-button active" data-tab="synthesize">
+        <span class="icon">🎤</span>Sintesi
+    </button>
+    <button class="nav-btn tab-button" data-tab="jobs">
+        <span class="icon">📋</span>Job
+    </button>
+    <button class="nav-btn tab-button" data-tab="profiles">
+        <span class="icon">👤</span>Profili
+    </button>
+    <button class="nav-btn tab-button" data-tab="phrases">
+        <span class="icon">📚</span>Frasi
+    </button>
+    <button class="nav-btn tab-button" data-tab="settings">
+        <span class="icon">⚙</span>Config
+    </button>
+</nav>
 
-            <div class="form-group">
-                <label>Testo da sintetizzare</label>
-                <textarea id="textToSynthesize" placeholder="Inserisci il testo che vuoi sintetizzare..."></textarea>
-                <div class="text-muted" style="margin-top: 6px;">Puoi trascinare il bordo inferiore per estendere il campo in altezza. Se selezioni una parte del testo, i parametri job verranno applicati solo alla selezione; il resto usa i default del profilo.</div>
-            </div>
-
-            <div class="button-group full" style="margin-bottom: 8px;">
-                <button class="btn-primary" onclick="synthesizeAudio()">Genera audio</button>
-            </div>
-
-            <div class="button-group synth-secondary-actions" style="margin-bottom: 16px;">
-                <button class="btn-secondary" onclick="clearSynthesisText()">Pulisci testo</button>
-                <button class="btn-secondary" id="shareGeneratedAudioWhatsappButton" onclick="shareGeneratedAudioToWhatsApp()" disabled>WhatsApp</button>
-                <button class="btn-secondary" id="shareGeneratedAudioButton" onclick="shareGeneratedAudio()" disabled>Condividi audio</button>
-            </div>
-
-            <div id="synthProgress" style="display: none; margin-bottom: 16px;">
-                <div class="progress-bar">
-                    <div class="progress-bar-fill" id="synthProgressBar" style="width: 0%;"></div>
-                </div>
-                <div class="text-muted" id="synthProgressText">In elaborazione...</div>
-            </div>
-
-            <div class="job-item" id="synthResultCard" style="display: none; margin-bottom: 16px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span class="job-status done">PRONTO</span>
-                </div>
-                <div class="text-muted" id="generatedAudioMeta" style="margin-bottom: 8px;">Dopo la sintesi potrai ascoltare o condividere il file.</div>
-                <audio id="generatedAudioPlayer" controls preload="none" style="width: 100%;"></audio>
-            </div>
-
-            <div class="settings-group" style="margin-bottom: 16px;">
-                <div class="settings-group-title">Libreria frasi (usate o celebri)</div>
-                <div class="text-muted" style="margin-bottom: 8px;">Salva frasi pronte e portale nel testo da sintetizzare con un tap, poi modificale liberamente.</div>
-                <div class="form-group" style="margin-bottom: 10px;">
-                    <label>Nome frase (opzionale)</label>
-                    <input type="text" id="phraseTitleInput" placeholder="Es. Intro video, Citazione 1...">
-                </div>
-                <div class="button-group" style="margin-bottom: 10px;">
-                    <button class="btn-secondary" onclick="saveCurrentTextAsPhrase()">Salva frase corrente</button>
-                    <button class="btn-secondary" onclick="insertSelectedPhraseIntoSynthesisText()">Porta nel testo</button>
-                </div>
-                <div class="button-group" style="margin-bottom: 10px;">
-                    <button class="btn-secondary" onclick="addDefaultFamousPhrases()">Aggiungi frasi celebri</button>
-                    <button class="btn-secondary" onclick="deleteSelectedPhrase()">Elimina frase</button>
-                </div>
-                <div class="form-group" style="margin-bottom: 8px;">
-                    <label>Frasi salvate</label>
-                    <ol id="phraseLibraryList" class="phrase-library-list"></ol>
-                </div>
-                <div class="text-muted" id="phraseLibraryPreview" style="white-space: pre-wrap;">Nessuna frase selezionata.</div>
-            </div>
-
-            <div id="synthResultsMultipleContainer" style="display: none; margin-bottom: 16px;">
-                <div class="settings-group">
-                    <div class="settings-group-title">Risultati sintesi multipla</div>
-                    <div id="synthResultsList"></div>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label>Formato</label>
-                <select id="format">
-                    <option value="mp3" selected>MP3</option>
-                    <option value="wav">WAV</option>
-                </select>
-            </div>
-
-            <div class="settings-group">
-                <div class="settings-group-title">Parametri solo per questa sintesi</div>
-                <div class="text-muted" style="margin-bottom: 8px;">Questi valori non vengono salvati come default del profilo.</div>
-                <div class="button-group" style="margin-bottom: 10px;">
-                    <button class="btn-secondary" onclick="copySynthesisParamsFromSettings()">Copia da Impostazioni</button>
-                </div>
-                <div class="form-group">
-                    <label>Motore (job)</label>
-                    <select id="synthEngine">
-                        <option value="auto">Auto</option>
-                        <option value="pyttsx3">pyttsx3</option>
-                        <option value="xtts">xtts</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Lingua (job)</label>
-                    <div class="lang-autocomplete-wrapper" id="langWrap_synthLanguage">
-                        <input type="text" id="synthLanguage_label" placeholder="es. Italiano" autocomplete="off"
-                            oninput="langAcFilter('synthLanguage')" onfocus="langAcFilter('synthLanguage')" onblur="langAcBlur('synthLanguage')" value="Italiano">
-                        <input type="hidden" id="synthLanguage" value="it">
-                        <div class="lang-autocomplete-dropdown" id="langDrop_synthLanguage"></div>
-                    </div>
-                    <div class="translate-btn-row">
-                        <button class="btn-secondary btn-small" onclick="translateSynthText()">Traduci testo</button>
-                        <span class="translate-status" id="translateStatus"></span>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label>Umore (job)</label>
-                    <select id="synthMood">
-                        <option value="neutro">Neutro</option>
-                        <option value="felice">Felice</option>
-                        <option value="triste">Triste</option>
-                        <option value="arrabbiato">Arrabbiato</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Preset (job)</label>
-                    <select id="synthPreset">
-                        <option value="professionale">Professionale</option>
-                        <option value="casual">Casual</option>
-                        <option value="energico">Energico</option>
-                        <option value="calmo">Calmo</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Accento (job)</label>
-                    <select id="synthAccent">
-                        <option value="italiano_standard">Italiano standard</option>
-                        <option value="napoletano">Napoletano</option>
-                        <option value="siciliano">Siciliano</option>
-                        <option value="romana">Romana</option>
-                        <option value="toscana">Toscana</option>
-                        <option value="lombarda">Lombarda</option>
-                        <option value="english_uk">English UK</option>
-                        <option value="english_us">English US</option>
-                        <option value="english_irish">English Irish</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Velocita (job)</label>
-                    <input type="range" id="synthSpeed" min="0.5" max="2.0" step="0.1" value="1.0" style="width: 100%;">
-                    <div class="text-muted" id="synthSpeedValue">1.0x</div>
-                </div>
-                <div class="form-group">
-                    <label>Pitch (job)</label>
-                    <input type="range" id="synthPitch" min="-24" max="24" step="1" value="0" style="width: 100%;">
-                    <div class="text-muted" id="synthPitchValue">0 st</div>
-                </div>
-                <div class="form-group">
-                    <label>Volume (job)</label>
-                    <input type="range" id="synthVolume" min="-24" max="24" step="0.5" value="0" style="width: 100%;">
-                    <div class="text-muted" id="synthVolumeValue">0.0 dB</div>
-                </div>
-            </div>
-
-            <div id="synthMessage"></div>
-        </div>
-        
-        <!-- JOBS TAB -->
-        <div class="tab-content" id="jobs">
-            <div class="pull-refresh-indicator" id="jobsPullRefreshIndicator">Scorri giu per aggiornare</div>
-            <div class="button-group full" style="margin-bottom: 16px;">
-                <button class="btn-secondary" id="deleteAllJobsBtn" onclick="deleteAllJobs()">Elimina tutti i job</button>
-            </div>
-            <div id="jobsMessage"></div>
-            
-            <div id="jobsContainer"></div>
-        </div>
-    </div>
-    
     <script>
         const config = {
             baseUrl: 'https://clonavoce.onrender.com',
@@ -1006,6 +817,9 @@
         let jobsPullActive = false;
         let jobsPullRefreshing = false;
         let phraseLibrary = [];
+        let synthesisQueue = [];
+        let synthesisQueueRunning = false;
+        let synthesisBlockedByMissingSamples = false;
 
         function getDefaultFamousPhrases() {
             return [
@@ -1151,6 +965,157 @@
             textArea.value = '';
             textArea.focus();
             showMessage('synthMessage', 'Campo testo svuotato.', 'success');
+        }
+
+        function updateQueueStatusText() {
+            const el = document.getElementById('queueStatusText');
+            const addBtn = document.getElementById('queueAddBtn');
+            const startBtn = document.getElementById('queueStartBtn');
+            const clearBtn = document.getElementById('queueClearBtn');
+            if (!el) {
+                return;
+            }
+            const count = synthesisQueue.length;
+            if (synthesisQueueRunning) {
+                el.textContent = `Coda in esecuzione. In attesa: ${count}`;
+            } else if (count > 0) {
+                el.textContent = `Job in coda: ${count}`;
+            } else {
+                el.textContent = 'Coda vuota.';
+            }
+            const offline = !runtimeState.renderReachable;
+            if (addBtn) {
+                addBtn.disabled = synthesisQueueRunning || synthesisBlockedByMissingSamples || offline;
+            }
+            if (startBtn) {
+                startBtn.disabled = synthesisQueueRunning || count === 0 || synthesisBlockedByMissingSamples || offline;
+            }
+            if (clearBtn) {
+                clearBtn.disabled = synthesisQueueRunning || count === 0 || offline;
+            }
+        }
+
+        function captureCurrentSynthesisJob() {
+            const profile = String(document.getElementById('synthProfile').value || '').trim();
+            const text = String(document.getElementById('textToSynthesize').value || '').trim();
+            const format = String(document.getElementById('format').value || 'mp3').trim() || 'mp3';
+            const language = String(document.getElementById('synthLanguage').value || 'it').trim() || 'it';
+            if (!profile || !text) {
+                throw new Error('Compila profilo e testo prima di aggiungere in coda.');
+            }
+            if (!ensureProfileReadyForSynthesis(profile, false)) {
+                throw new Error(`Profilo "${profile}" senza sample: aggiungi almeno un sample per attivarlo.`);
+            }
+            return {
+                profile,
+                text,
+                format,
+                language,
+                params: getCurrentSynthesisParams(),
+                addedAt: Date.now(),
+            };
+        }
+
+        function enqueueCurrentSynthesis() {
+            try {
+                const job = captureCurrentSynthesisJob();
+                synthesisQueue.push(job);
+                updateQueueStatusText();
+                showMessage('synthMessage', `Job aggiunto in coda. Totale: ${synthesisQueue.length}`, 'success');
+            } catch (err) {
+                showMessage('synthMessage', err.message || 'Impossibile aggiungere in coda', 'error');
+            }
+        }
+
+        function clearSynthesisQueue() {
+            if (synthesisQueueRunning) {
+                showMessage('synthMessage', 'Coda in esecuzione: attendi il completamento.', 'info');
+                return;
+            }
+            synthesisQueue = [];
+            updateQueueStatusText();
+            showMessage('synthMessage', 'Coda svuotata.', 'success');
+        }
+
+        async function runQueuedSynthesisJob(job, index, total) {
+            const profile = String(job?.profile || '').trim();
+            const text = String(job?.text || '').trim();
+            const format = String(job?.format || 'mp3').trim() || 'mp3';
+            const language = String(job?.language || 'it').trim() || 'it';
+            const params = (job && typeof job.params === 'object') ? job.params : getCurrentSynthesisParams();
+            if (!profile || !text) {
+                throw new Error('Job di coda non valido: profilo/testo mancanti.');
+            }
+
+            const progressText = document.getElementById('synthProgressText');
+            if (progressText) {
+                progressText.textContent = `Coda ${index}/${total}: avvio...`;
+            }
+
+            const segments = parseLanguageTaggedSegments(text, language);
+            if (!segments.length) {
+                throw new Error('Testo job non valido');
+            }
+
+            if (segments.length === 1) {
+                const out = await runSynthesis(profile, segments[0].text, format, segments[0].language, params);
+                updateGeneratedAudioPreview(out.blob, out.jobId, format);
+                return;
+            }
+
+            const blobs = [];
+            const ids = [];
+            for (let i = 0; i < segments.length; i++) {
+                const seg = segments[i];
+                if (progressText) {
+                    progressText.textContent = `Coda ${index}/${total}: segmento ${i + 1}/${segments.length}`;
+                }
+                const out = await runSynthesis(profile, seg.text, 'wav', seg.language, params);
+                blobs.push(out.blob);
+                ids.push(out.jobId);
+            }
+            const merged = await mergeAudioBlobsToWav(blobs);
+            const syntheticJobId = ids[ids.length - 1] || `queue_${Date.now()}`;
+            updateGeneratedAudioPreview(merged, syntheticJobId, 'wav');
+        }
+
+        async function startSynthesisQueue() {
+            if (synthesisQueueRunning) {
+                showMessage('synthMessage', 'Coda gia in esecuzione.', 'info');
+                return;
+            }
+            if (!synthesisQueue.length) {
+                showMessage('synthMessage', 'La coda e vuota.', 'info');
+                updateQueueStatusText();
+                return;
+            }
+
+            synthesisQueueRunning = true;
+            updateQueueStatusText();
+            const total = synthesisQueue.length;
+            let ok = 0;
+            let failed = 0;
+
+            try {
+                for (let i = 0; i < total; i++) {
+                    const job = synthesisQueue.shift();
+                    updateQueueStatusText();
+                    try {
+                        await runQueuedSynthesisJob(job, i + 1, total);
+                        ok += 1;
+                    } catch (err) {
+                        failed += 1;
+                        const msg = err?.message || String(err || 'Errore sconosciuto');
+                        showMessage('synthMessage', `Errore job ${i + 1}/${total}: ${msg}`, 'error');
+                        logError('QUEUE', 'Job fallito', { index: i + 1, total, message: msg });
+                    }
+                    await refreshJobs();
+                }
+                showMessage('synthMessage', `Coda completata. OK: ${ok}, falliti: ${failed}.`, failed ? 'info' : 'success');
+            } finally {
+                synthesisQueueRunning = false;
+                updateQueueStatusText();
+            }
         }
 
         function saveCurrentTextAsPhrase() {
@@ -1441,41 +1406,61 @@
             btn.textContent = isBusy ? 'Elaborazione in corso...' : 'Carica sample e confronta';
         }
 
+        function _setUploadPhaseText(stage) {
+            const el = document.getElementById('uploadProgressPhaseText');
+            if (!el) return;
+            if (stage === 'upload') el.textContent = 'Caricamento audio al server...';
+            else if (stage === 'transcribe') el.textContent = 'Trascrizione del testo in corso...';
+            else if (stage === 'synthesis') el.textContent = 'Sintesi voce AI con il tuo sample...';
+            else if (stage === 'done') el.textContent = 'Completato';
+            else el.textContent = String(stage || '');
+        }
+
         function startUploadProgress(stage) {
             uploadStage = stage || 'upload';
             uploadStartTs = Date.now();
-            if (uploadStage === 'upload') {
-                setUploadActivity('Verifica backend e preparazione upload sample', 120);
-            } else if (uploadStage === 'synthesis') {
-                setUploadActivity('Sintesi voce AI in corso sul server', 90);
-            } else {
-                setUploadActivity('Elaborazione in corso', 0);
-            }
+            const progressDiv = document.getElementById('uploadProgress');
+            const bar = document.getElementById('uploadProgressBar');
+            if (progressDiv) progressDiv.style.display = 'block';
+            if (bar) bar.style.width = '0%';
+            _setUploadPhaseText(uploadStage);
             setUploadButtonBusy(true);
             clearUploadProgressTimer();
             uploadProgressTimer = setInterval(() => {
-                const elapsedSec = Math.max(0, Math.round((Date.now() - uploadStartTs) / 1000));
-                if (uploadEstimateTotalSec > 0) {
-                    const remaining = Math.max(0, uploadEstimateTotalSec - elapsedSec);
-                    updateUploadStatusText(`${uploadActivityText}: ${elapsedSec}s trascorsi, stima residua ${remaining}s`);
-                    return;
+                const elapsed = Math.max(0, (Date.now() - uploadStartTs) / 1000);
+                const b = document.getElementById('uploadProgressBar');
+                if (!b) return;
+                if (uploadStage === 'upload') {
+                    b.style.width = `${Math.min(48, 5 + elapsed * 2).toFixed(1)}%`;
+                } else if (uploadStage === 'synthesis') {
+                    const synthBar = document.getElementById('synthProgressBar');
+                    const sp = synthBar ? parseFloat(synthBar.style.width) || 0 : 0;
+                    b.style.width = `${Math.min(95, 52 + sp * 0.43).toFixed(1)}%`;
                 }
-                updateUploadStatusText(`${uploadActivityText}: ${elapsedSec}s trascorsi`);
-            }, 1000);
+            }, 500);
         }
 
         function switchUploadStage(stage) {
             uploadStage = stage || uploadStage;
             uploadStartTs = Date.now();
-            if (uploadStage === 'upload') {
-                setUploadActivity('Upload sample e trascrizione in corso', 120);
-            } else if (uploadStage === 'synthesis') {
-                setUploadActivity('Sintesi voce AI in corso sul server', 90);
+            _setUploadPhaseText(uploadStage);
+            const bar = document.getElementById('uploadProgressBar');
+            if (uploadStage === 'synthesis' && bar) {
+                bar.style.width = '52%';
             }
         }
 
         function finishUploadProgress(successText = '') {
             clearUploadProgressTimer();
+            const bar = document.getElementById('uploadProgressBar');
+            const phaseEl = document.getElementById('uploadProgressPhaseText');
+            const progressDiv = document.getElementById('uploadProgress');
+            if (bar) bar.style.width = '100%';
+            if (phaseEl) phaseEl.textContent = successText || '';
+            setTimeout(() => {
+                if (progressDiv) progressDiv.style.display = 'none';
+                if (bar) bar.style.width = '0%';
+            }, 2000);
             setUploadButtonBusy(false);
             if (successText) {
                 updateUploadStatusText(successText);
@@ -1536,6 +1521,19 @@
             debugLog.push(row);
             if (debugLog.length > DEBUG_LOG_LIMIT) {
                 debugLog.splice(0, debugLog.length - DEBUG_LOG_LIMIT);
+            }
+            // Forward to Android logcat via WebChromeClient.onConsoleMessage
+            try {
+                const line = `[${row.tag}] ${row.msg}${extra != null ? ' | ' + safeSerialize(extra) : ''}`;
+                if (row.level === 'ERROR') {
+                    console.error(line);
+                } else if (row.level === 'WARN') {
+                    console.warn(line);
+                } else {
+                    console.log(line);
+                }
+            } catch (_err) {
+                // Never let console forwarding crash app logic.
             }
             try {
                 localStorage.setItem('clonavoceDebugLog', JSON.stringify(debugLog));
@@ -1810,7 +1808,9 @@
         }
 
         function updatePcDependentUi() {
-            const offline = !isPcOperational();
+            const renderOffline = !runtimeState.renderReachable;
+            const pcLinkOffline = !runtimeState.pcLinkReachable;
+            
             const pcDependentSelectors = [
                 '#profiles button',
                 '#profiles input',
@@ -1837,30 +1837,29 @@
                     return;
                 }
                 if (tag === 'textarea' && el.hasAttribute('readonly')) {
-                    el.disabled = offline;
+                    el.disabled = renderOffline;
                     return;
                 }
                 if ('disabled' in el) {
-                    el.disabled = offline;
+                    el.disabled = renderOffline;
                 }
             });
 
             document.querySelectorAll('.tab-button').forEach((btn) => {
                 const tab = String(btn.dataset.tab || '');
-                btn.disabled = offline && tab !== 'settings';
+                btn.disabled = renderOffline && tab !== 'settings';
             });
 
-            if (offline) {
+            if (renderOffline) {
                 const activeOperationalTab = document.querySelector('.tab-content.active:not(#settings)');
                 if (activeOperationalTab) {
                     activateTab('settings');
                 }
-                const msg = runtimeState.pcLinkError || 'Collegamento verso il PC non disponibile';
-                const settingsMsg = document.getElementById('settingsMessage');
-                if (settingsMsg && !String(settingsMsg.textContent || '').includes(msg)) {
-                    showMessage('settingsMessage', `Azioni bloccate: ${msg}`, 'error');
-                }
+                showMessage('settingsMessage', 'Render non raggiungibile: connessione remota temporaneamente offline', 'error');
+            } else if (pcLinkOffline) {
+                showMessage('settingsMessage', `Avviso: ${runtimeState.pcLinkError || 'PC offline (funzioni remote operative)'}`, 'warning');
             }
+            updateSynthesisAvailabilityUi();
         }
 
         function isEndpointRestartingStatus(status) {
@@ -1878,31 +1877,51 @@
             runtimeState.pcLinkStatus = String(pcLinkStatus || 'unknown');
             runtimeState.pcLinkError = String(pcLinkError || '');
             const el = document.getElementById('statusText');
+            const dot = document.getElementById('statusDot');
             if (!el) {
                 return;
             }
             if (!renderReachable) {
                 el.textContent = 'Offline';
+                if (dot) { dot.className = 'status-dot offline'; }
                 updatePcDependentUi();
                 return;
             }
             if (runtimeState.pcLinkStatus === 'auth_required') {
                 el.textContent = 'Online: inserisci API key';
+                if (dot) { dot.className = 'status-dot warn'; }
                 updatePcDependentUi();
                 return;
             }
             if (isEndpointRestartingStatus(runtimeState.pcLinkStatus)) {
                 el.textContent = 'Offline: riavvio in corso';
+                if (dot) { dot.className = 'status-dot warn'; }
                 updatePcDependentUi();
                 return;
             }
             if (!pcLinkReachable) {
-                el.textContent = 'Offline: PC non raggiungibile';
+                el.textContent = 'Render OK · PC offline';
+                if (dot) { dot.className = 'status-dot warn'; }
                 updatePcDependentUi();
                 return;
             }
-            el.textContent = 'Online: PC collegato';
+            el.textContent = 'Render + PC online';
+            if (dot) { dot.className = 'status-dot online'; }
             updatePcDependentUi();
+        }
+
+        async function ensureRenderAvailable(actionLabel = 'Operazione') {
+            let health = null;
+            try {
+                health = await fetchPrivateHealth();
+            } catch (err) {
+                setConnectionState(false, false, 'offline', String(err?.message || err || 'Connessione assente'));
+                throw new Error(`${actionLabel} non disponibile: Render non raggiungibile.`);
+            }
+            if (!health || !runtimeState.renderReachable) {
+                throw new Error(`${actionLabel} non disponibile: Render non raggiungibile.`);
+            }
+            return health;
         }
 
         async function fetchPrivateHealth() {
@@ -2408,8 +2427,48 @@
             }
         }
 
+        // ── Cold-start retry state ──────────────────────────────────────────
+        let _startupRetryTimer = null;
+        let _startupRetryCount = 0;
+        const STARTUP_MAX_RETRIES = 10;      // up to ~2 min 30 s
+        const STARTUP_RETRY_INTERVAL = 15000; // every 15 s
+
+        // ── Periodic background status refresh ──────────────────────────────
+        let _bgHealthTimer = null;
+        const BG_HEALTH_INTERVAL = 60000; // every 60 s
+
+        function _startBgHealthCheck() {
+            if (_bgHealthTimer) {
+                return;
+            }
+            _bgHealthTimer = setInterval(async () => {
+                try {
+                    const prev = runtimeState.renderReachable;
+                    await fetchPrivateHealth();
+                    // If PC link is down, signal Render so tunnel_watcher.py can react
+                    if (runtimeState.renderReachable && !runtimeState.pcLinkReachable) {
+                        apiRequest('POST', '/internal/tunnel-refresh-needed').catch(() => {});
+                    }
+                    // If we just came back online after being offline, refresh profiles too
+                    if (!prev && runtimeState.renderReachable) {
+                        logInfo('HEALTH', 'Render tornato online, aggiorno profili');
+                        refreshProfiles();
+                        refreshDebugLogView();
+                    }
+                } catch (_err) {
+                    // Silent: setConnectionState already called inside fetchPrivateHealth
+                }
+            }, BG_HEALTH_INTERVAL);
+        }
+
         async function testConnection() {
             document.getElementById('statusText').textContent = 'Test connessione in corso...';
+            // Cancel any pending cold-start retry when the user tests manually
+            if (_startupRetryTimer) {
+                clearTimeout(_startupRetryTimer);
+                _startupRetryTimer = null;
+                _startupRetryCount = 0;
+            }
             try {
                 const health = await fetchPrivateHealth();
                 const status = String(runtimeState.pcLinkStatus || health?.pc_link_status || '').toLowerCase();
@@ -2424,11 +2483,23 @@
                 if (isPcOperational()) {
                     showMessage('settingsMessage', `Connessione OK. Render online e PC raggiungibile.`, 'success');
                 } else {
-                    showMessage('settingsMessage', `Render online ma PC offline: ${runtimeState.pcLinkError || health.pc_link_error || 'collegamento non disponibile'}`, 'error');
+                    showMessage('settingsMessage', `Render online. PC offline: funzioni remote disponibili (${runtimeState.pcLinkError || health.pc_link_error || 'collegamento non disponibile'}).`, 'info');
                 }
+                _startBgHealthCheck();
             } catch (err) {
                 setConnectionState(false, false, 'offline', err.message);
                 showMessage('settingsMessage', err.message, 'error');
+                // Auto-retry while Render is cold-starting (free tier spin-up can take ~60 s)
+                if (_startupRetryCount < STARTUP_MAX_RETRIES) {
+                    _startupRetryCount++;
+                    const attempt = _startupRetryCount;
+                    logInfo('HEALTH', `Render non raggiungibile, nuovo tentativo ${attempt}/${STARTUP_MAX_RETRIES} tra ${STARTUP_RETRY_INTERVAL / 1000} s...`);
+                    document.getElementById('statusText').textContent = `Offline (riprov. ${attempt}/${STARTUP_MAX_RETRIES})`;
+                    _startupRetryTimer = setTimeout(() => {
+                        _startupRetryTimer = null;
+                        testConnection();
+                    }, STARTUP_RETRY_INTERVAL);
+                }
             }
         }
 
@@ -2458,6 +2529,68 @@
 
         function getProfileById(profile) {
             return currentProfiles.find(item => String(item.profile || '') === String(profile || '')) || null;
+        }
+
+        function getProfileSampleCount(profile) {
+            const item = getProfileById(profile);
+            if (!item) {
+                return null;
+            }
+            if (Number.isFinite(Number(item.sample_count))) {
+                return Number(item.sample_count);
+            }
+            if (Array.isArray(item.samples)) {
+                return item.samples.length;
+            }
+            return 0;
+        }
+
+        function ensureProfileReadyForSynthesis(profile, showUiWarning = true) {
+            const profileName = String(profile || '').trim();
+            if (!profileName) {
+                return false;
+            }
+            const count = getProfileSampleCount(profileName);
+            if (count === null) {
+                return true;
+            }
+            if (count > 0) {
+                return true;
+            }
+            if (showUiWarning) {
+                showMessage('synthMessage', `Profilo "${profileName}" senza sample: aggiungi almeno un sample per attivarlo.`, 'error');
+            }
+            return false;
+        }
+
+        function updateSynthesisAvailabilityUi() {
+            const profile = String(document.getElementById('synthProfile')?.value || '').trim();
+            const warningEl = document.getElementById('synthProfileWarning');
+            const generateBtn = document.getElementById('synthGenerateBtn');
+            let blocked = false;
+
+            if (profile) {
+                const count = getProfileSampleCount(profile);
+                blocked = count !== null && count <= 0;
+                if (warningEl) {
+                    if (blocked) {
+                        warningEl.textContent = `Attenzione: il profilo "${profile}" e senza sample, quindi non e attivo per la generazione audio.`;
+                        warningEl.style.display = 'block';
+                    } else {
+                        warningEl.style.display = 'none';
+                        warningEl.textContent = '';
+                    }
+                }
+            } else if (warningEl) {
+                warningEl.style.display = 'none';
+                warningEl.textContent = '';
+            }
+
+            synthesisBlockedByMissingSamples = blocked;
+            if (generateBtn) {
+                generateBtn.disabled = blocked || !runtimeState.renderReachable;
+            }
+            updateQueueStatusText();
         }
 
         function getProfileDefaults(profile) {
@@ -2648,7 +2781,9 @@
                                 <span class="text-muted" style="flex:1; font-size: 12px;">${escapeHtml(fname)} (${dur}s)</span>
                                 <button class="btn-secondary btn-small" onclick="deleteSampleById('${encodeURIComponent(profile)}','${encodeURIComponent(fname)}')">Elimina</button>
                             </div>`;
-                        }).join('')
+                        }).join('') + `<div class="button-group" style="margin-top: 8px; margin-bottom: 0;">
+                            <button class="btn-secondary btn-small" onclick="deleteAllSamplesById('${encodedProfile}')">Elimina tutti i campioni</button>
+                        </div>`
                         : '<div class="text-muted" style="margin-top: 6px;">Nessun campione</div>';
                     return `
                         <details class="profile-card${isSelected ? ' selected' : ''}" ${isExpanded ? 'open' : ''} ontoggle="onProfileCardToggle('${encodedProfile}', this.open)">
@@ -2782,16 +2917,19 @@
                 applyProfileDefaultsToSynthesis(profile);
             }
             document.getElementById('profileToken').value = getProfileToken(profile);
+            updateSynthesisAvailabilityUi();
         }
 
         function syncProfileFromSynthesis() {
             const profile = document.getElementById('synthProfile').value.trim();
             if (!profile) {
+                updateSynthesisAvailabilityUi();
                 return;
             }
             document.getElementById('profileSelect').value = profile;
             document.getElementById('profileToken').value = getProfileToken(profile);
             applyProfileDefaultsToSynthesis(profile);
+            updateSynthesisAvailabilityUi();
         }
 
         function saveCurrentProfileToken() {
@@ -2952,6 +3090,52 @@
             }
         }
 
+        async function deleteAllSamplesById(encodedProfile) {
+            const profile = decodeURIComponent(encodedProfile || '');
+            if (!profile) {
+                return;
+            }
+            if (capabilities.canDeleteSample === false) {
+                showMessage('profilesContainer', 'Eliminazione campioni non supportata da questo backend.', 'error');
+                return;
+            }
+            const profileRow = getProfileById(profile);
+            const samples = Array.isArray(profileRow?.samples) ? profileRow.samples : [];
+            if (!samples.length) {
+                showMessage('profilesContainer', 'Nessun campione da eliminare per questo profilo.', 'info');
+                return;
+            }
+            if (!confirm(`Eliminare tutti i ${samples.length} campioni del profilo "${profileRow?.display_name || profile}"?`)) {
+                return;
+            }
+            let deleted = 0;
+            for (const sampleItem of samples) {
+                const sampleName = String(sampleItem?.filename || '').trim();
+                if (!sampleName) {
+                    continue;
+                }
+                try {
+                    await apiRequest('DELETE', `/profiles/${encodeURIComponent(profile)}/samples/${encodeURIComponent(sampleName)}`);
+                    deleted += 1;
+                } catch (err) {
+                    if (isDeleteUnsupportedError(err)) {
+                        capabilities.canDeleteSample = false;
+                        updateCapabilitiesUi();
+                        showMessage('profilesContainer', 'Il server remoto non supporta ancora DELETE dei campioni.', 'error');
+                        return;
+                    }
+                    showMessage('profilesContainer', `Errore su ${sampleName}: ${err.message}`, 'error');
+                    return;
+                }
+            }
+
+            await refreshProfiles();
+            document.getElementById('profileSelect').value = profile;
+            document.getElementById('synthProfile').value = profile;
+            onProfileChanged();
+            showMessage('profilesContainer', `Campioni eliminati: ${deleted}`, 'success');
+        }
+
         async function saveProfileDefaultsById(encodedProfile, idSuffix = '') {
             const profile = decodeURIComponent(encodedProfile || '');
             if (!profile) {
@@ -3089,7 +3273,10 @@
         }
 
         async function runSynthesis(profile, text, format = 'mp3', languageOverride = '', paramsOverride = null) {
-            await ensurePcLinkAvailable('Sintesi');
+            await ensureRenderAvailable('Sintesi');
+            if (!ensureProfileReadyForSynthesis(profile, false)) {
+                throw new Error(`Profilo "${profile}" senza sample: aggiungi almeno un sample per attivarlo.`);
+            }
             const token = getProfileToken(profile);
             if (!token) {
                 throw new Error('Token mancante per il profilo selezionato');
@@ -3809,6 +3996,10 @@
                 showMessage('synthMessage', 'Compila profilo e testo', 'error');
                 return;
             }
+            if (!ensureProfileReadyForSynthesis(profile, true)) {
+                updateSynthesisAvailabilityUi();
+                return;
+            }
             try {
                 clearGeneratedAudioPreview();
                 lastGeneratedProfile = profile;
@@ -4003,14 +4194,12 @@
                 formData.append('sample', recordedBlob, `sample_${Date.now()}.${ext}`);
                 formData.append('auto_transcribe', 'true');
                 formData.append('language_hint', document.getElementById('language').value || 'it');
-                setUploadActivity('Invio sample audio al server e avvio trascrizione', 120);
                 logInfo('UPLOAD', 'Invio POST /profiles/add-sample-upload', {
                     profile: selectedProfile,
                     ext,
                     blobSize: recordedBlob.size,
                     mimeType: recordedMimeType,
                 });
-                showMessage('profilesContainer', 'Upload inviato. Attendi fino a 2 minuti (transcrizione server in corso)...', 'info');
 
                 const result = await apiUpload('/profiles/add-sample-upload', formData);
                 await refreshProfiles();
@@ -4028,7 +4217,6 @@
 
                 document.getElementById('textToSynthesize').value = transcript;
                 switchUploadStage('synthesis');
-                setUploadActivity('Trascrizione completata, avvio sintesi voce AI', 90);
                 const ai = await runSynthesis(selectedProfile, transcript, 'mp3');
                 if (currentAiAudioUrl) {
                     URL.revokeObjectURL(currentAiAudioUrl);
@@ -4564,35 +4752,14 @@
         }
 
         // ──────────────────────────────────────────────────────────────────
-        // WORLD LANGUAGES – IT, EN, ES, FR first; rest alphabetical by label
+        // Lingue supportate da XTTS v2 (usate anche per traduzione in app)
         // ──────────────────────────────────────────────────────────────────
         const WORLD_LANGUAGES = [
             {v:'it',l:'Italiano'},{v:'en',l:'Inglese'},{v:'es',l:'Spagnolo'},{v:'fr',l:'Francese'},
-            {v:'af',l:'Afrikaans'},{v:'sq',l:'Albanese'},{v:'am',l:'Amarico'},{v:'ar',l:'Arabo'},
-            {v:'hy',l:'Armeno'},{v:'az',l:'Azerbaigiano'},{v:'eu',l:'Basco'},{v:'be',l:'Bielorusso'},
-            {v:'bn',l:'Bengalese'},{v:'bs',l:'Bosniaco'},{v:'bg',l:'Bulgaro'},{v:'my',l:'Birmano'},
-            {v:'ca',l:'Catalano'},{v:'ceb',l:'Cebuano'},{v:'cs',l:'Ceco'},{v:'ny',l:'Chichewa'},
-            {v:'zh-cn',l:'Cinese (semplificato)'},{v:'zh-tw',l:'Cinese (tradizionale)'},
-            {v:'ko',l:'Coreano'},{v:'hr',l:'Croato'},{v:'da',l:'Danese'},{v:'ht',l:'Creolo haitiano'},
-            {v:'nl',l:'Olandese'},{v:'eo',l:'Esperanto'},{v:'et',l:'Estone'},{v:'tl',l:'Filipino'},
-            {v:'fi',l:'Finlandese'},{v:'fy',l:'Frisone'},{v:'gl',l:'Galiziano'},{v:'ka',l:'Georgiano'},
-            {v:'de',l:'Tedesco'},{v:'el',l:'Greco'},{v:'gu',l:'Gujarati'},{v:'ha',l:'Hausa'},
-            {v:'haw',l:'Hawaiano'},{v:'iw',l:'Ebraico'},{v:'hi',l:'Hindi'},{v:'hmn',l:'Hmong'},
-            {v:'hu',l:'Ungherese'},{v:'is',l:'Islandese'},{v:'ig',l:'Igbo'},{v:'id',l:'Indonesiano'},
-            {v:'ga',l:'Irlandese'},{v:'ja',l:'Giapponese'},{v:'jw',l:'Giavanese'},{v:'kn',l:'Kannada'},
-            {v:'kk',l:'Kazako'},{v:'km',l:'Khmer'},{v:'ku',l:'Curdo'},{v:'ky',l:'Kirghiso'},
-            {v:'lo',l:'Lao'},{v:'la',l:'Latino'},{v:'lv',l:'Lettone'},{v:'lt',l:'Lituano'},
-            {v:'lb',l:'Lussemburghese'},{v:'mk',l:'Macedone'},{v:'mg',l:'Malgascio'},{v:'ms',l:'Malese'},
-            {v:'ml',l:'Malayalam'},{v:'mt',l:'Maltese'},{v:'mi',l:'Maori'},{v:'mr',l:'Marathi'},
-            {v:'mn',l:'Mongolo'},{v:'ne',l:'Nepalese'},{v:'no',l:'Norvegese'},{v:'ps',l:'Pashtu'},
-            {v:'fa',l:'Persiano'},{v:'pl',l:'Polacco'},{v:'pt',l:'Portoghese'},{v:'pa',l:'Punjabi'},
-            {v:'ro',l:'Rumeno'},{v:'ru',l:'Russo'},{v:'sm',l:'Samoano'},{v:'gd',l:'Gaelico scozzese'},
-            {v:'sr',l:'Serbo'},{v:'st',l:'Sesotho'},{v:'sn',l:'Shona'},{v:'sd',l:'Sindhi'},
-            {v:'si',l:'Singalese'},{v:'sk',l:'Slovacco'},{v:'sl',l:'Sloveno'},{v:'so',l:'Somalo'},
-            {v:'su',l:'Sundanese'},{v:'sw',l:'Swahili'},{v:'sv',l:'Svedese'},{v:'tg',l:'Tagico'},
-            {v:'ta',l:'Tamil'},{v:'te',l:'Telugu'},{v:'th',l:'Tailandese'},{v:'tr',l:'Turco'},
-            {v:'uk',l:'Ucraino'},{v:'ur',l:'Urdu'},{v:'uz',l:'Uzbeko'},{v:'vi',l:'Vietnamita'},
-            {v:'cy',l:'Gallese'},{v:'xh',l:'Xhosa'},{v:'yi',l:'Yiddish'},{v:'yo',l:'Yoruba'},{v:'zu',l:'Zulu'},
+            {v:'de',l:'Tedesco'},{v:'pt',l:'Portoghese'},{v:'pl',l:'Polacco'},{v:'tr',l:'Turco'},
+            {v:'ru',l:'Russo'},{v:'nl',l:'Olandese'},{v:'cs',l:'Ceco'},{v:'ar',l:'Arabo'},
+            {v:'zh-cn',l:'Cinese (Semplificato)'},{v:'ja',l:'Giapponese'},{v:'ko',l:'Coreano'},
+            {v:'hu',l:'Ungherese'},{v:'th',l:'Tailandese'},
         ];
         // Map code -> label for display
         const WORLD_LANGUAGES_LABEL = Object.fromEntries(WORLD_LANGUAGES.map(({v,l}) => [v, l]));
@@ -4741,6 +4908,7 @@
             refreshBackendCapabilities();
             refreshProfiles();
             testConnection();
+            updateQueueStatusText();
         });
     </script>
 </body>

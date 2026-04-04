@@ -16,7 +16,7 @@ import hashlib
 import urllib.request
 import urllib.error
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -36,8 +36,10 @@ except Exception as exc:
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BASE_DIR.parent
-OUTPUT_DIR = PROJECT_DIR / "output"
+LEGACY_OUTPUT_DIR = PROJECT_DIR / "output"
+OUTPUT_DIR = getattr(core, "OUTPUT_DIR", Path(os.getenv("CLONAVOCE_OUTPUT_DIR", "").strip() or LEGACY_OUTPUT_DIR))
 API_OUTPUT_DIR = OUTPUT_DIR / "api"
+JOBS_STATE_PATH = OUTPUT_DIR / "jobs_state.json"
 SCRIPT_PATH = BASE_DIR / "clona_voce_personale.py"
 MAX_WORKERS = int(os.getenv("CLONAVOCE_MAX_WORKERS", "2"))
 JOB_TTL_SECONDS = int(os.getenv("CLONAVOCE_JOB_TTL_SECONDS", "86400"))
@@ -48,6 +50,39 @@ REMOTE_XTTS_TIMEOUT = int(os.getenv("CLONAVOCE_REMOTE_XTTS_TIMEOUT_SECONDS", "18
 APP_BUILD = os.getenv("CLONAVOCE_APP_BUILD", "dev").strip() or "dev"
 
 API_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _migrate_legacy_output_storage() -> None:
+    if OUTPUT_DIR == LEGACY_OUTPUT_DIR or not LEGACY_OUTPUT_DIR.exists():
+        return
+
+    legacy_jobs_state = LEGACY_OUTPUT_DIR / "jobs_state.json"
+    target_jobs_state = OUTPUT_DIR / "jobs_state.json"
+    legacy_api_dir = LEGACY_OUTPUT_DIR / "api"
+    target_api_dir = OUTPUT_DIR / "api"
+
+    try:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        target_api_dir.mkdir(parents=True, exist_ok=True)
+
+        if legacy_jobs_state.exists() and not target_jobs_state.exists():
+            shutil.copy2(legacy_jobs_state, target_jobs_state)
+            logger.info("Migrated jobs state to output dir: %s", target_jobs_state)
+
+        if legacy_api_dir.exists():
+            migrated_files = 0
+            for legacy_file in legacy_api_dir.iterdir():
+                if not legacy_file.is_file():
+                    continue
+                target_file = target_api_dir / legacy_file.name
+                if target_file.exists():
+                    continue
+                shutil.copy2(legacy_file, target_file)
+                migrated_files += 1
+            if migrated_files:
+                logger.info("Migrated %s legacy API output files", migrated_files)
+    except Exception as exc:
+        logger.warning("Failed migrating legacy output storage: %s", exc)
 
 
 @dataclass
@@ -133,6 +168,112 @@ transcribe_lock = threading.Lock()
 _whisper_models: dict[str, Any] = {}
 
 
+def _job_state_to_storage_row(state: JobState) -> dict[str, Any]:
+    return {
+        "id": state.id,
+        "created_at": float(state.created_at or 0.0),
+        "status": str(state.status or "queued"),
+        "profile": str(state.profile or ""),
+        "display_name": str(state.display_name or ""),
+        "text_preview": str(state.text_preview or ""),
+        "text_full": str(state.text_full or ""),
+        "language": str(state.language or ""),
+        "original_text": str(state.original_text or ""),
+        "original_language": str(state.original_language or ""),
+        "audio_format": str(state.audio_format or "mp3"),
+        "output_path": str(state.output_path or ""),
+        "started_at": state.started_at,
+        "finished_at": state.finished_at,
+        "return_code": state.return_code,
+        "stdout_tail": str(state.stdout_tail or ""),
+        "stderr_tail": str(state.stderr_tail or ""),
+        "error": str(state.error or ""),
+    }
+
+
+def _persist_jobs_locked() -> None:
+    rows = [_job_state_to_storage_row(state) for state in jobs.values()]
+    payload = {
+        "saved_at": time.time(),
+        "jobs": rows,
+    }
+    try:
+        JOBS_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = JOBS_STATE_PATH.with_suffix(".json.tmp")
+        tmp_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+        tmp_path.replace(JOBS_STATE_PATH)
+    except Exception as exc:
+        logger.warning("Persist jobs failed: %s", exc)
+
+
+def _load_jobs_from_disk() -> None:
+    if not JOBS_STATE_PATH.exists() or not JOBS_STATE_PATH.is_file():
+        return
+    try:
+        payload = json.loads(JOBS_STATE_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Load jobs state failed: %s", exc)
+        return
+
+    rows = payload.get("jobs", []) if isinstance(payload, dict) else []
+    if not isinstance(rows, list):
+        logger.warning("Invalid jobs state format: jobs is not a list")
+        return
+
+    loaded: dict[str, JobState] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        job_id = str(row.get("id") or "").strip()
+        if not job_id:
+            continue
+        try:
+            state = JobState(
+                id=job_id,
+                created_at=float(row.get("created_at") or 0.0),
+                status=str(row.get("status") or "queued"),
+                profile=str(row.get("profile") or ""),
+                display_name=str(row.get("display_name") or ""),
+                text_preview=str(row.get("text_preview") or ""),
+                text_full=str(row.get("text_full") or ""),
+                language=str(row.get("language") or ""),
+                original_text=str(row.get("original_text") or ""),
+                original_language=str(row.get("original_language") or ""),
+                audio_format=str(row.get("audio_format") or "mp3"),
+                output_path=str(row.get("output_path") or ""),
+                started_at=float(row.get("started_at")) if row.get("started_at") is not None else None,
+                finished_at=float(row.get("finished_at")) if row.get("finished_at") is not None else None,
+                return_code=int(row.get("return_code")) if row.get("return_code") is not None else None,
+                stdout_tail=str(row.get("stdout_tail") or ""),
+                stderr_tail=str(row.get("stderr_tail") or ""),
+                error=str(row.get("error") or ""),
+            )
+        except Exception:
+            continue
+
+        # If output file was deleted, keep the historical row but mark it as failed.
+        if state.status == "done" and state.output_path:
+            try:
+                p = Path(state.output_path)
+                if not p.exists() or not p.is_file():
+                    state.status = "failed"
+                    state.error = "Output mancante dopo riavvio"
+                    state.output_path = ""
+            except Exception:
+                state.status = "failed"
+                state.error = "Output non verificabile dopo riavvio"
+                state.output_path = ""
+
+        loaded[job_id] = state
+
+    with jobs_lock:
+        jobs.clear()
+        jobs.update(loaded)
+        _persist_jobs_locked()
+
+    logger.info("Loaded %s jobs from disk", len(loaded))
+
+
 def _tail_text(text: str, max_chars: int = 6000) -> str:
     text = str(text or "")
     if len(text) <= max_chars:
@@ -152,8 +293,11 @@ def _preview_text(text: str, max_chars: int = 96) -> str:
 
 
 def _cleanup_jobs() -> None:
+    if JOB_TTL_SECONDS <= 0:
+        return
     now = time.time()
     stale_ids: list[str] = []
+    changed = False
     with jobs_lock:
         for job_id, state in jobs.items():
             if state.finished_at and (now - state.finished_at) > JOB_TTL_SECONDS:
@@ -162,12 +306,22 @@ def _cleanup_jobs() -> None:
             state = jobs.pop(job_id, None)
             if not state:
                 continue
+            changed = True
             try:
                 path = Path(state.output_path)
                 if path.exists() and path.is_file():
                     path.unlink(missing_ok=True)
             except Exception:
                 pass
+        if changed:
+            _persist_jobs_locked()
+
+
+def _reload_jobs_from_disk_if_empty() -> None:
+    with jobs_lock:
+        has_jobs = bool(jobs)
+    if not has_jobs and JOBS_STATE_PATH.exists() and JOBS_STATE_PATH.is_file():
+        _load_jobs_from_disk()
 
 
 def _auth(api_key: str | None = Header(default=None, alias="X-API-Key")) -> None:
@@ -546,22 +700,30 @@ def _probe_remote_xtts_health() -> dict[str, Any]:
         headers={"Accept": "application/json"},
         method="GET",
     )
-    try:
-        with urllib.request.urlopen(req, timeout=min(max(5, REMOTE_XTTS_TIMEOUT), 12)) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-            payload = json.loads(raw) if raw else {}
-            result["reachable"] = bool(payload.get("ok", True))
-            result["status"] = "online" if result["reachable"] else "degraded"
-            return result
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        result["status"] = "offline"
-        result["error"] = f"HTTP {exc.code}: {detail[:200]}"
-        return result
-    except Exception as exc:
-        result["status"] = "offline"
-        result["error"] = str(exc)
-        return result
+    # 2 tentativi con pausa: evita falsi "PC offline" su latenza temporanea
+    _probe_timeout = min(max(5, REMOTE_XTTS_TIMEOUT), 10)
+    last_exc: Exception | None = None
+    for attempt in range(2):
+        try:
+            with urllib.request.urlopen(req, timeout=_probe_timeout) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+                payload = json.loads(raw) if raw else {}
+                result["reachable"] = bool(payload.get("ok", True))
+                result["status"] = "online" if result["reachable"] else "degraded"
+                return result
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            result["status"] = "offline"
+            result["error"] = f"HTTP {exc.code}: {detail[:200]}"
+            return result  # errore HTTP è definitivo, non ritentare
+        except Exception as exc:
+            last_exc = exc
+            if attempt == 0:
+                import time as _time
+                _time.sleep(3)  # attesa prima del secondo tentativo
+    result["status"] = "offline"
+    result["error"] = str(last_exc)
+    return result
 
 
 def _prepare_uploaded_sample_for_core(source_path: Path) -> Path:
@@ -677,6 +839,7 @@ def _run_synthesize_job(job_id: str, payload: SynthesizeRequest) -> None:
         state = jobs[job_id]
         state.status = "running"
         state.started_at = time.time()
+        _persist_jobs_locked()
 
     safe_profile = _slug(payload.profile)
     output_ext = payload.format.lower()
@@ -702,6 +865,7 @@ def _run_synthesize_job(job_id: str, payload: SynthesizeRequest) -> None:
                     state.finished_at = time.time()
                     state.status = "done"
                     state.output_path = str(output_path)
+                    _persist_jobs_locked()
                 return
             remote_error = str(msg or "errore remoto sconosciuto")
             logger.warning("Remote XTTS fallita, fallback locale: %s", msg)
@@ -717,6 +881,7 @@ def _run_synthesize_job(job_id: str, payload: SynthesizeRequest) -> None:
             state.finished_at = time.time()
             state.status = "failed"
             state.error = f"Sintesi XTTS remota non riuscita: {remote_error}"
+            _persist_jobs_locked()
         return
 
     cmd = [
@@ -805,17 +970,21 @@ def _run_synthesize_job(job_id: str, payload: SynthesizeRequest) -> None:
                 if "no module named 'tts'" in low:
                     if remote_attempted and remote_error:
                         state.error = f"Sintesi XTTS remota non riuscita: {remote_error}"
+                        _persist_jobs_locked()
                         return
                     state.error = "Sintesi XTTS non disponibile sul server (modulo TTS mancante). Qualita alta non disponibile finche XTTS non viene installato."
+                    _persist_jobs_locked()
                     return
                 stderr_snippet = _tail_text(completed.stderr, 800).strip()
                 state.error = f"Sintesi fallita (rc={completed.returncode}){': ' + stderr_snippet if stderr_snippet else ''}"
+            _persist_jobs_locked()
     except Exception as exc:
         with jobs_lock:
             state = jobs[job_id]
             state.finished_at = time.time()
             state.status = "failed"
             state.error = f"Eccezione runtime: {exc}"
+            _persist_jobs_locked()
 
 
 @app.on_event("startup")
@@ -829,6 +998,10 @@ def _startup() -> None:
             logger.warning("core module not available, skipping ensure_dirs")
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         API_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        _migrate_legacy_output_storage()
+        _load_jobs_from_disk()
+        logger.info(f"Jobs state path: {JOBS_STATE_PATH}")
+        logger.info(f"Jobs state exists: {JOBS_STATE_PATH.exists()}")
         logger.info(f"Output directories ready: {API_OUTPUT_DIR}")
         logger.info(f"API Key configured: {bool(API_KEY)}")
         logger.info(f"App build marker: {APP_BUILD}")
@@ -1257,6 +1430,7 @@ def synthesize(payload: SynthesizeRequest) -> dict[str, Any]:
     )
     with jobs_lock:
         jobs[job_id] = state
+        _persist_jobs_locked()
     executor.submit(_run_synthesize_job, job_id, payload)
     return {
         "accepted": True,
@@ -1268,6 +1442,7 @@ def synthesize(payload: SynthesizeRequest) -> dict[str, Any]:
 
 @app.get("/jobs/{job_id}")
 def job_status(job_id: str) -> dict[str, Any]:
+    _reload_jobs_from_disk_if_empty()
     _cleanup_jobs()
     with jobs_lock:
         state = jobs.get(job_id)
@@ -1278,6 +1453,7 @@ def job_status(job_id: str) -> dict[str, Any]:
 
 @app.get("/jobs/{job_id}/download")
 def job_download(job_id: str) -> FileResponse:
+    _reload_jobs_from_disk_if_empty()
     _cleanup_jobs()
     with jobs_lock:
         state = jobs.get(job_id)
@@ -1294,6 +1470,7 @@ def job_download(job_id: str) -> FileResponse:
 
 @app.get("/jobs")
 def list_jobs() -> dict[str, Any]:
+    _reload_jobs_from_disk_if_empty()
     _cleanup_jobs()
     with jobs_lock:
         items = [_job_to_dict(state) for state in sorted(jobs.values(), key=lambda x: x.created_at, reverse=True)]
@@ -1305,6 +1482,8 @@ def delete_job(job_id: str) -> dict[str, Any]:
     _cleanup_jobs()
     with jobs_lock:
         state = jobs.pop(job_id, None)
+        if state:
+            _persist_jobs_locked()
     if not state:
         raise HTTPException(status_code=404, detail="Job non trovato")
 
@@ -1327,6 +1506,7 @@ def delete_all_jobs() -> dict[str, Any]:
     with jobs_lock:
         states = list(jobs.values())
         jobs.clear()
+        _persist_jobs_locked()
 
     deleted_files = 0
     for state in states:
@@ -1343,6 +1523,36 @@ def delete_all_jobs() -> dict[str, Any]:
         "deleted": True,
         "jobs_deleted": len(states),
         "output_files_deleted": deleted_files,
+    }
+
+
+# ── Tunnel-refresh notification ───────────────────────────────────────────────
+_tunnel_refresh_requested: bool = False
+_tunnel_refresh_requested_at: float = 0.0
+
+
+@app.post("/internal/tunnel-refresh-needed")
+def request_tunnel_refresh(_: None = Depends(_auth)) -> dict[str, Any]:
+    """App → Render: segnala che il collegamento PC è caduto e serve un refresh del tunnel."""
+    global _tunnel_refresh_requested, _tunnel_refresh_requested_at
+    _tunnel_refresh_requested = True
+    _tunnel_refresh_requested_at = time.time()
+    logger.info("tunnel-refresh-needed: flag impostato dalle app client")
+    return {"ok": True, "requested_at": _tunnel_refresh_requested_at}
+
+
+@app.get("/internal/tunnel-refresh-needed")
+def get_tunnel_refresh_status(_: None = Depends(_auth)) -> dict[str, Any]:
+    """PC watcher: controlla se c'è una richiesta di refresh pendente (la consuma se presente)."""
+    global _tunnel_refresh_requested, _tunnel_refresh_requested_at
+    pending = _tunnel_refresh_requested
+    if pending:
+        _tunnel_refresh_requested = False
+        logger.info("tunnel-refresh-needed: flag consumato dal PC watcher")
+    return {
+        "pending": pending,
+        "last_requested_at": _tunnel_refresh_requested_at,
+        "current_remote_url": REMOTE_XTTS_URL,
     }
 
 

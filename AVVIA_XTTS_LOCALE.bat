@@ -22,6 +22,12 @@ set "RENDER_API_KEY="
 set "RENDER_SERVICE_ID="
 set "RENDER_AUTO_SYNC=1"
 set "RENDER_REMOTE_TIMEOUT_SECONDS=180"
+set "RENDER_VERIFY_ALIGNMENT=1"
+set "PREV_REMOTE_XTTS_URL="
+set "NEW_REMOTE_XTTS_URL="
+set "URL_CHANGED=0"
+set "RENDER_SYNC_ATTEMPTED=0"
+set "RENDER_SYNC_OK=0"
 
 echo ==========================================
 echo  ClonaVoce - Avvio XTTS Locale + Tunnel
@@ -46,6 +52,8 @@ if exist "%CONFIG_FILE%" (
         call :load_env_file "%CONFIG_FILE%"
     )
 )
+
+set "PREV_REMOTE_XTTS_URL=%CLONAVOCE_REMOTE_XTTS_URL%"
 
 if "%CLONAVOCE_REMOTE_XTTS_KEY%"=="" (
     set /p CLONAVOCE_REMOTE_XTTS_KEY=Inserisci CLONAVOCE_REMOTE_XTTS_KEY: 
@@ -160,7 +168,7 @@ if not "%CLOUDFLARED_TUNNEL_TOKEN%"=="" (
     goto :tunnel_ready
 )
 
-start "Cloudflared XTTS Tunnel" /MIN cmd /c "call "%CLOUDFLARED_CMD%" tunnel --url http://127.0.0.1:%PORT% > "%TUNNEL_LOG%" 2>&1"
+start "Cloudflared XTTS Tunnel" /MIN cmd /c ""%CONFIG_DIR%\run_cloudflared_loop.cmd" "%CLOUDFLARED_CMD%" "%PORT%" "%TUNNEL_LOG%""
 
 if not "%CLOUDFLARED_FIXED_PUBLIC_URL%"=="" (
     set "TUNNEL_URL=%CLOUDFLARED_FIXED_PUBLIC_URL%"
@@ -191,12 +199,46 @@ pause
 exit /b 1
 
 :tunnel_ready
-call :persist_public_url "%CONFIG_FILE%" "%TUNNEL_URL%"
-call :persist_url "%CONFIG_FILE%" "%TUNNEL_URL%/synthesize"
+set "NEW_REMOTE_XTTS_URL=%TUNNEL_URL%/synthesize"
+if /I "%PREV_REMOTE_XTTS_URL%"=="%NEW_REMOTE_XTTS_URL%" (
+    set "URL_CHANGED=0"
+) else (
+    set "URL_CHANGED=1"
+)
+
 echo [OK] URL tunnel rilevato: %TUNNEL_URL%
-echo [OK] Config aggiornata: CLONAVOCE_REMOTE_XTTS_URL=%TUNNEL_URL%/synthesize
+if "%URL_CHANGED%"=="1" (
+    call :persist_public_url "%CONFIG_FILE%" "%TUNNEL_URL%"
+    call :persist_url "%CONFIG_FILE%" "%NEW_REMOTE_XTTS_URL%"
+    set "CLONAVOCE_REMOTE_XTTS_URL=%NEW_REMOTE_XTTS_URL%"
+    echo [OK] Config aggiornata: CLONAVOCE_REMOTE_XTTS_URL=%NEW_REMOTE_XTTS_URL%
+    echo [INFO] Cambio indirizzo rilevato:
+    echo        PRECEDENTE: %PREV_REMOTE_XTTS_URL%
+    echo        NUOVO     : %NEW_REMOTE_XTTS_URL%
+) else (
+    set "CLONAVOCE_REMOTE_XTTS_URL=%PREV_REMOTE_XTTS_URL%"
+    echo [INFO] Config invariata: nessun aggiornamento URL su file.
+    echo [INFO] Indirizzo invariato: %NEW_REMOTE_XTTS_URL%
+)
+
+call :check_public_tunnel_health "%TUNNEL_URL%" 75
+if errorlevel 1 (
+    echo [ERRORE] Tunnel pubblico non raggiungibile su %TUNNEL_URL%/health
+    pause
+    exit /b 1
+)
+
 if /I "%RENDER_AUTO_SYNC%"=="1" (
-    call :sync_render_env "%TUNNEL_URL%/synthesize" "%CLONAVOCE_REMOTE_XTTS_KEY%" "%RENDER_REMOTE_TIMEOUT_SECONDS%"
+    if "%URL_CHANGED%"=="1" (
+        set "RENDER_SYNC_ATTEMPTED=1"
+        call :sync_render_env "%NEW_REMOTE_XTTS_URL%" "%CLONAVOCE_REMOTE_XTTS_KEY%" "%RENDER_REMOTE_TIMEOUT_SECONDS%"
+        if not errorlevel 1 set "RENDER_SYNC_OK=1"
+    ) else (
+        echo [INFO] URL invariato: eseguo solo verifica allineamento Render.
+    )
+    if /I "%RENDER_VERIFY_ALIGNMENT%"=="1" (
+        call :verify_render_alignment "%NEW_REMOTE_XTTS_URL%"
+    )
 ) else (
     echo [INFO] Sync automatico Render disabilitato: RENDER_AUTO_SYNC=%RENDER_AUTO_SYNC%.
 )
@@ -206,28 +248,86 @@ echo ==========================================
 echo  Stato finale
 echo ==========================================
 echo  Tunnel locale  : %TUNNEL_URL%
-echo  Endpoint synth : %TUNNEL_URL%/synthesize
+echo  Endpoint synth : %NEW_REMOTE_XTTS_URL%
 echo  Render URL     : https://clonavoce.onrender.com
 echo.
 if /I "%RENDER_AUTO_SYNC%"=="1" (
     if not "%RENDER_API_KEY%"=="" (
-        echo  Render aggiornato automaticamente.
-        echo  - Variabili env aggiornate: OK
-        echo  - Deploy avviato alle: %TIME%
+        if "%URL_CHANGED%"=="1" (
+            if "%RENDER_SYNC_OK%"=="1" (
+                echo  Render aggiornato automaticamente.
+                echo  - Variabili env aggiornate: OK
+                echo  - Deploy avviato alle: %TIME%
+            ) else (
+                echo  [WARN] Sync Render tentato ma non confermato. Verifica i log sopra.
+            )
+        ) else (
+            echo  Render non aggiornato: URL invariato.
+            echo  - Nessun deploy necessario.
+        )
     ) else (
         echo  [WARN] Render NON aggiornato: RENDER_API_KEY mancante.
         echo  Aggiorna manualmente CLONAVOCE_REMOTE_XTTS_URL su Render:
-        echo    %TUNNEL_URL%/synthesize
+        echo    %NEW_REMOTE_XTTS_URL%
     )
 ) else (
     echo  Sync automatico disabilitato.
     echo  Aggiorna manualmente su Render:
-    echo    CLONAVOCE_REMOTE_XTTS_URL = %TUNNEL_URL%/synthesize
+    echo    CLONAVOCE_REMOTE_XTTS_URL = %NEW_REMOTE_XTTS_URL%
 )
 echo ==========================================
 echo.
 echo (Finestra aperta - il tunnel e il server XTTS sono attivi)
 pause
+exit /b 0
+
+:check_public_tunnel_health
+set "_BASE_URL=%~1"
+set "_MAX_WAIT=%~2"
+if "%_MAX_WAIT%"=="" set "_MAX_WAIT=60"
+set "_HEALTH_URL=%_BASE_URL%/health"
+set /a "_MAX_TRIES=(_MAX_WAIT+2)/3"
+if %_MAX_TRIES% LSS 1 set "_MAX_TRIES=1"
+
+echo [INFO] Verifica tunnel pubblico con retry (%_MAX_WAIT%s max): %_HEALTH_URL%
+for /L %%I in (1,1,%_MAX_TRIES%) do (
+    powershell -NoProfile -Command "try { $r=Invoke-WebRequest -UseBasicParsing '%_HEALTH_URL%' -TimeoutSec 6; if($r.StatusCode -eq 200){exit 0}else{exit 1} } catch { exit 1 }"
+    if not errorlevel 1 (
+        echo [OK] Tunnel pubblico verificato: %_HEALTH_URL%
+        exit /b 0
+    )
+    echo [WARN] Health tunnel pubblico non disponibile (tentativo %%I/%_MAX_TRIES%): %_HEALTH_URL%
+    timeout /t 3 >nul
+)
+
+echo [WARN] Health tunnel pubblico non disponibile dopo %_MAX_WAIT%s: %_HEALTH_URL%
+if exist "%TUNNEL_LOG%" (
+    echo [INFO] Ultime righe log cloudflared:
+    powershell -NoProfile -Command "Get-Content -Path '%TUNNEL_LOG%' -Tail 8"
+)
+exit /b 1
+
+:verify_render_alignment
+set "_TARGET_URL=%~1"
+if "%RENDER_API_KEY%"=="" (
+    echo [WARN] Verifica allineamento Render saltata: RENDER_API_KEY mancante.
+    exit /b 0
+)
+if "%RENDER_SERVICE_ID%"=="" (
+    echo [WARN] Verifica allineamento Render saltata: RENDER_SERVICE_ID mancante.
+    exit /b 0
+)
+if not exist "%CONFIG_DIR%\check_live_health.py" (
+    echo [WARN] check_live_health.py non trovato. Verifica allineamento Render saltata.
+    exit /b 0
+)
+echo [INFO] Verifica allineamento Render (health/private)...
+"%PYTHON_CMD%" "%CONFIG_DIR%\check_live_health.py" "%_TARGET_URL%"
+if errorlevel 1 (
+    echo [WARN] Verifica allineamento Render non conclusiva o mismatch URL.
+    exit /b 0
+)
+echo [OK] Verifica allineamento Render completata.
 exit /b 0
 
 :sync_render_env
@@ -259,9 +359,9 @@ if not exist "%CONFIG_DIR%\render_sync.py" (
 if errorlevel 1 (
     echo [WARN] Sync Render fallito. Mantengo comunque il tunnel locale attivo.
     echo [INFO] Verifica RENDER_API_KEY e RENDER_SERVICE_ID in %CONFIG_FILE%.
-    exit /b 0
+    exit /b 1
 )
-echo [OK] Render aggiornato e deploy avviato.
+echo [OK] Sync Render completato (deploy eseguito solo se necessario).
 exit /b 0
 
 :ensure_py311_venv
